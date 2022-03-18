@@ -14037,6 +14037,14 @@ public final class Settings {
                 "otp_redaction_lock_time";
 
         /**
+
+         * Control whether FLAG_SECURE is ignored for all windows.
+         * @hide
+         */
+        @Readable
+        public static final String WINDOW_IGNORE_SECURE = "window_ignore_secure";
+
+        /**
          * Whether to play NFC related sounds
          * @hide
          */

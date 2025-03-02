@@ -144,6 +144,7 @@ public class SystemSettings {
                 Settings.System.GAMING_MODE_SCREEN_OFF,
                 Settings.System.GAMING_MODE_BATTERY_SAVER_DISABLES,
                 Settings.System.GAMING_MODE_THREE_FINGER,
+                Settings.System.GAMING_MODE_TOUCH_SENSITIVITY,
                 Settings.System.GAMING_MODE_APPS,
                 Settings.System.NOTIFICATION_HEADERS,
                 Settings.System.RINGTONE_VIBRATION_PATTERN,

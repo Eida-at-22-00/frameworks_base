@@ -6558,6 +6558,13 @@ public final class Settings {
         public static final String GAMING_MODE_THREE_FINGER = "gaming_mode_three_finger";
 
         /**
+         * Whether gaming mode toggles touch sensitivity
+         * @hide
+         */
+        @Readable
+        public static final String GAMING_MODE_TOUCH_SENSITIVITY = "gaming_mode_touch_sensitivity";
+
+        /**
          * Apps gaming macro should automatically activate for
          * package name list delimeted by comma
          * @hide

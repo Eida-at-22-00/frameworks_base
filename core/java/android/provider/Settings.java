@@ -6458,6 +6458,15 @@ public final class Settings {
         public static final String GAMING_MODE_RINGER = "gaming_mode_ringer";
 
         /**
+         * Gaming mode display color mode
+         * -1 = Disabled / Don't change (default)
+         * other values = the color mode to set when activated
+         * @hide
+         */
+        @Readable
+        public static final String GAMING_MODE_COLOR_MODE = "gaming_mode_color_mode";
+
+        /**
          * Whether gaming mode sets {@link FORCE_SHOW_NAVBAR}
          * @hide
          */

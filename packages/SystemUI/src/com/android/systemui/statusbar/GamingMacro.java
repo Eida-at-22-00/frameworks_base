@@ -64,6 +64,7 @@ public class GamingMacro {
     private static final String KEY_HEADSUP_STATE = "gaming_mode_state_headsup";
     private static final String KEY_ZEN_STATE = "gaming_mode_state_zen";
     private static final String KEY_RINGER_MODE = "gmaing_mode_ringer_mode";
+    private static final String KEY_COLOR_MODE = "gmaing_mode_color_mode";
     // private static final String KEY_NAVBAR_STATE = "gaming_mode_state_navbar";
     // private static final String KEY_HW_KEYS_STATE = "gaming_mode_state_hw_keys";
     private static final String KEY_NIGHT_LIGHT = "gaming_mode_night_light";
@@ -118,6 +119,7 @@ public class GamingMacro {
     private boolean mBatterySaverDisables;
 
     private int mRingerMode = 0;
+    private int mColorMode = -1;
     private int mBrightnessLevel = 80;
     private int mMediaLevel = 80;
 
@@ -188,6 +190,10 @@ public class GamingMacro {
                     mode = AudioManager.RINGER_MODE_SILENT;
                 }
                 mAudio.setRingerModeInternal(mode);
+            }
+
+            if (mColorMode != -1) {
+                mColorManager.setColorMode(mColorMode);
             }
 
             // if (mNavBarEnabled) {
@@ -298,6 +304,8 @@ public class GamingMacro {
                 Settings.System.GAMING_MODE_ZEN, 0) == 1;
         mRingerMode = Settings.System.getInt(mResolver,
                 Settings.System.GAMING_MODE_RINGER, 0);
+        mColorMode = Settings.System.getInt(mResolver,
+                Settings.System.GAMING_MODE_COLOR_MODE, -1);
         // mNavBarEnabled = Settings.System.getInt(mResolver,
         //         Settings.System.GAMING_MODE_NAVBAR, 0) == 1;
         // mHwKeysEnabled = Settings.System.getInt(mResolver,
@@ -346,6 +354,10 @@ public class GamingMacro {
 
         if (mRingerMode != 0) {
             editor.putInt(KEY_RINGER_MODE, mAudio.getRingerModeInternal());
+        }
+
+        if (mColorMode != -1) {
+            editor.putInt(KEY_COLOR_MODE, mColorManager.getColorMode());
         }
 
         // if (mNavBarEnabled) {
@@ -429,6 +441,11 @@ public class GamingMacro {
         if (mPrefs.contains(KEY_RINGER_MODE)) {
             mAudio.setRingerModeInternal(mPrefs.getInt(
                     KEY_RINGER_MODE, AudioManager.RINGER_MODE_NORMAL));
+        }
+
+        if (mPrefs.contains(KEY_COLOR_MODE)) {
+            mColorManager.setColorMode(mPrefs.getInt(
+                    KEY_COLOR_MODE, mColorManager.getColorMode()));
         }
 
         // if (mPrefs.contains(KEY_NAVBAR_STATE)) {

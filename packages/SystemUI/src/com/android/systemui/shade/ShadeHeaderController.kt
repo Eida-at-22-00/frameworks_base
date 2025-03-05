@@ -59,7 +59,7 @@ import com.android.systemui.shade.ShadeHeaderController.Companion.QS_HEADER_CONS
 import com.android.systemui.shade.ShadeViewProviderModule.Companion.SHADE_HEADER
 import com.android.systemui.shade.carrier.ShadeCarrierGroup
 import com.android.systemui.shade.carrier.ShadeCarrierGroupController
-import com.android.systemui.statusbar.phone.StatusBarContentInsetsProvider
+import com.android.systemui.statusbar.data.repository.StatusBarContentInsetsProviderStore
 import com.android.systemui.statusbar.phone.StatusBarLocation
 import com.android.systemui.statusbar.phone.StatusIconContainer
 import com.android.systemui.statusbar.phone.StatusOverlayHoverListenerFactory
@@ -93,8 +93,8 @@ constructor(
     private val statusBarIconController: StatusBarIconController,
     private val tintedIconManagerFactory: TintedIconManager.Factory,
     private val privacyIconsController: HeaderPrivacyIconsController,
-    private val insetsProvider: StatusBarContentInsetsProvider,
-    private val configurationController: ConfigurationController,
+    private val insetsProviderStore: StatusBarContentInsetsProviderStore,
+    @ShadeDisplayAware private val configurationController: ConfigurationController,
     private val variableDateViewControllerFactory: VariableDateViewController.Factory,
     @Named(SHADE_HEADER) private val batteryMeterViewController: BatteryMeterViewController,
     private val dumpManager: DumpManager,
@@ -106,6 +106,8 @@ constructor(
     private val activityStarter: ActivityStarter,
     private val statusOverlayHoverListenerFactory: StatusOverlayHoverListenerFactory,
 ) : ViewController<View>(header), Dumpable {
+
+    private val insetsProvider = insetsProviderStore.defaultDisplay
 
     companion object {
         /** IDs for transitions and constraints for the [MotionLayout]. */
@@ -269,7 +271,7 @@ constructor(
                     left,
                     header.paddingTop,
                     header.paddingRight,
-                    header.paddingBottom
+                    header.paddingBottom,
                 )
                 systemIconsHoverContainer.setPaddingRelative(
                     resources.getDimensionPixelSize(
@@ -283,7 +285,7 @@ constructor(
                     ),
                     resources.getDimensionPixelSize(
                         R.dimen.hover_system_icons_container_padding_bottom
-                    )
+                    ),
                 )
             }
 
@@ -324,7 +326,7 @@ constructor(
         batteryIcon.updateColors(
             fgColor /* foreground */,
             bgColor /* background */,
-            fgColor /* single tone (current default) */
+            fgColor, /* single tone (current default) */
         )
 
         carrierIconSlots =
@@ -452,7 +454,7 @@ constructor(
                 if (view.isLayoutRtl) cutoutRight else cutoutLeft,
                 header.paddingStart,
                 if (view.isLayoutRtl) cutoutLeft else cutoutRight,
-                header.paddingEnd
+                header.paddingEnd,
             )
 
         if (cutout != null) {
@@ -463,7 +465,7 @@ constructor(
                 changes +=
                     combinedShadeHeadersConstraintManager.centerCutoutConstraints(
                         view.isLayoutRtl,
-                        (view.width - view.paddingLeft - view.paddingRight - topCutout.width()) / 2
+                        (view.width - view.paddingLeft - view.paddingRight - topCutout.width()) / 2,
                     )
             }
         } else {
@@ -590,7 +592,7 @@ constructor(
             clockPaddingStart,
             clock.paddingTop,
             clockPaddingEnd,
-            clock.paddingBottom
+            clock.paddingBottom,
         )
     }
 
@@ -633,9 +635,8 @@ constructor(
 
     @VisibleForTesting internal fun simulateViewDetached() = this.onViewDetached()
 
-    inner class CustomizerAnimationListener(
-        private val enteringCustomizing: Boolean,
-    ) : AnimatorListenerAdapter() {
+    inner class CustomizerAnimationListener(private val enteringCustomizing: Boolean) :
+        AnimatorListenerAdapter() {
         override fun onAnimationEnd(animation: Animator) {
             super.onAnimationEnd(animation)
             header.animate().setListener(null)

@@ -22,10 +22,15 @@ import android.view.VelocityTracker
 import android.view.animation.AccelerateInterpolator
 import androidx.annotation.FloatRange
 import androidx.annotation.VisibleForTesting
+import com.android.systemui.Flags
 import com.android.systemui.statusbar.VibratorHelper
+import com.google.android.msdl.data.model.MSDLToken
+import com.google.android.msdl.domain.InteractionProperties
+import com.google.android.msdl.domain.MSDLPlayer
 import kotlin.math.abs
 import kotlin.math.min
 import kotlin.math.pow
+import kotlin.math.round
 import kotlin.math.roundToInt
 import kotlin.math.roundToLong
 
@@ -40,7 +45,8 @@ import kotlin.math.roundToLong
  */
 class SliderHapticFeedbackProvider(
     private val vibratorHelper: VibratorHelper,
-    private val velocityTracker: VelocityTracker,
+    private val msdlPlayer: MSDLPlayer,
+    private val velocityProvider: SliderDragVelocityProvider,
     private val config: SliderHapticFeedbackConfig = SliderHapticFeedbackConfig(),
     private val clock: com.android.systemui.util.time.SystemClock,
 ) : SliderStateListener {
@@ -52,6 +58,7 @@ class SliderHapticFeedbackProvider(
     private var dragTextureLastTime = clock.elapsedRealtime()
     var dragTextureLastProgress = -1f
         private set
+
     private val lowTickDurationMs =
         vibratorHelper.getPrimitiveDurations(VibrationEffect.Composition.PRIMITIVE_LOW_TICK)[0]
     private var hasVibratedAtLowerBookend = false
@@ -86,11 +93,20 @@ class SliderHapticFeedbackProvider(
             vibratorHelper.vibrate(effect, VIBRATION_ATTRIBUTES_PIPELINING)
             return
         }
-        val vibration =
-            VibrationEffect.startComposition()
-                .addPrimitive(VibrationEffect.Composition.PRIMITIVE_CLICK, powerScale)
-                .compose()
-        vibratorHelper.vibrate(vibration, VIBRATION_ATTRIBUTES_PIPELINING)
+        if (Flags.msdlFeedback()) {
+            val properties =
+                InteractionProperties.DynamicVibrationScale(
+                    powerScale,
+                    VIBRATION_ATTRIBUTES_PIPELINING,
+                )
+            msdlPlayer.playToken(MSDLToken.DRAG_THRESHOLD_INDICATOR_LIMIT, properties)
+        } else {
+            val vibration =
+                VibrationEffect.startComposition()
+                    .addPrimitive(VibrationEffect.Composition.PRIMITIVE_CLICK, powerScale)
+                    .compose()
+            vibratorHelper.vibrate(vibration, VIBRATION_ATTRIBUTES_PIPELINING)
+        }
     }
 
     /**
@@ -119,7 +135,7 @@ class SliderHapticFeedbackProvider(
      */
     private fun vibrateDragTexture(
         absoluteVelocity: Float,
-        @FloatRange(from = 0.0, to = 1.0) normalizedSliderProgress: Float
+        @FloatRange(from = 0.0, to = 1.0) normalizedSliderProgress: Float,
     ) {
         // Check if its time to vibrate
         val currentTime = clock.elapsedRealtime()
@@ -129,15 +145,22 @@ class SliderHapticFeedbackProvider(
         val deltaProgress = abs(normalizedSliderProgress - dragTextureLastProgress)
         if (deltaProgress < config.deltaProgressForDragThreshold) return
 
+        // Check if the progress is a discrete step so haptics can be delivered
+        if (
+            config.sliderStepSize > 0 &&
+                !normalizedSliderProgress.isDiscreteStep(config.sliderStepSize)
+        ) {
+            return
+        }
+
         val powerScale = scaleOnDragTexture(absoluteVelocity, normalizedSliderProgress)
 
         if (isPrimitiveTickSupported) {
-            // Trigger the vibration composition
-            val composition = VibrationEffect.startComposition()
-            repeat(config.numberOfLowTicks) {
-                composition.addPrimitive(VibrationEffect.Composition.PRIMITIVE_LOW_TICK, powerScale)
+            // Deliver haptic feedback
+            when {
+                config.sliderStepSize == 0f -> performContinuousSliderDragVibration(powerScale)
+                config.sliderStepSize > 0f -> performDiscreteSliderDragVibration(powerScale)
             }
-            vibratorHelper.vibrate(composition.compose(), VIBRATION_ATTRIBUTES_PIPELINING)
         } else if (maxDurationFallback > 0) {
             val duration = powerToDuration(powerScale, maxDurationFallback)
             var effect = VibrationEffect.createOneShot(duration, VibrationEffect.MAX_AMPLITUDE)
@@ -154,6 +177,40 @@ class SliderHapticFeedbackProvider(
         dragTextureLastProgress = normalizedSliderProgress
     }
 
+    private fun Float.isDiscreteStep(stepSize: Float, epsilon: Float = 0.001f): Boolean {
+        if (stepSize <= 0f) return false
+        val division = this / stepSize
+        return abs(division - round(division)) < epsilon
+    }
+
+    private fun performDiscreteSliderDragVibration(scale: Float) {
+        if (Flags.msdlFeedback()) {
+            val properties =
+                InteractionProperties.DynamicVibrationScale(scale, VIBRATION_ATTRIBUTES_PIPELINING)
+            msdlPlayer.playToken(MSDLToken.DRAG_INDICATOR_DISCRETE, properties)
+        } else {
+            val effect =
+                VibrationEffect.startComposition()
+                    .addPrimitive(VibrationEffect.Composition.PRIMITIVE_TICK, scale)
+                    .compose()
+            vibratorHelper.vibrate(effect, VIBRATION_ATTRIBUTES_PIPELINING)
+        }
+    }
+
+    private fun performContinuousSliderDragVibration(scale: Float) {
+        if (Flags.msdlFeedback()) {
+            val properties =
+                InteractionProperties.DynamicVibrationScale(scale, VIBRATION_ATTRIBUTES_PIPELINING)
+            msdlPlayer.playToken(MSDLToken.DRAG_INDICATOR_CONTINUOUS, properties)
+        } else {
+            val composition = VibrationEffect.startComposition()
+            repeat(config.numberOfLowTicks) {
+                composition.addPrimitive(VibrationEffect.Composition.PRIMITIVE_LOW_TICK, scale)
+            }
+            vibratorHelper.vibrate(composition.compose(), VIBRATION_ATTRIBUTES_PIPELINING)
+        }
+    }
+
     /**
      * Get the scale of the drag texture vibration.
      *
@@ -165,7 +222,7 @@ class SliderHapticFeedbackProvider(
     @VisibleForTesting
     fun scaleOnDragTexture(
         absoluteVelocity: Float,
-        @FloatRange(from = 0.0, to = 1.0) normalizedSliderProgress: Float
+        @FloatRange(from = 0.0, to = 1.0) normalizedSliderProgress: Float,
     ): Float {
         val velocityInterpolated =
             velocityAccelerateInterpolator.getInterpolation(
@@ -195,31 +252,22 @@ class SliderHapticFeedbackProvider(
 
     override fun onLowerBookend() {
         if (!hasVibratedAtLowerBookend) {
-            vibrateOnEdgeCollision(abs(getTrackedVelocity()))
+            vibrateOnEdgeCollision(abs(velocityProvider.getTrackedVelocity()))
             hasVibratedAtLowerBookend = true
         }
     }
 
     override fun onUpperBookend() {
         if (!hasVibratedAtUpperBookend) {
-            vibrateOnEdgeCollision(abs(getTrackedVelocity()))
+            vibrateOnEdgeCollision(abs(velocityProvider.getTrackedVelocity()))
             hasVibratedAtUpperBookend = true
         }
     }
 
     override fun onProgress(@FloatRange(from = 0.0, to = 1.0) progress: Float) {
-        vibrateDragTexture(abs(getTrackedVelocity()), progress)
+        vibrateDragTexture(abs(velocityProvider.getTrackedVelocity()), progress)
         hasVibratedAtUpperBookend = false
         hasVibratedAtLowerBookend = false
-    }
-
-    private fun getTrackedVelocity(): Float {
-        velocityTracker.computeCurrentVelocity(UNITS_SECOND, config.maxVelocityToScale)
-        return if (velocityTracker.isAxisSupported(config.velocityAxis)) {
-            velocityTracker.getAxisVelocity(config.velocityAxis)
-        } else {
-            0f
-        }
     }
 
     override fun onProgressJump(@FloatRange(from = 0.0, to = 1.0) progress: Float) {}
@@ -232,7 +280,6 @@ class SliderHapticFeedbackProvider(
                 .setUsage(VibrationAttributes.USAGE_TOUCH)
                 .setFlags(VibrationAttributes.FLAG_PIPELINED_EFFECT)
                 .build()
-        private const val UNITS_SECOND = 1000
 
         private fun powerToDuration(dur: Float, maxDuration: Long): Long {
             return ((dur.coerceIn(0f, 1f) * (maxDuration - 1)) + 1).roundToLong()

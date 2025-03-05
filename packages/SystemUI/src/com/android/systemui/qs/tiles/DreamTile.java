@@ -31,6 +31,7 @@ import android.service.dreams.IDreamManager;
 import android.service.quicksettings.Tile;
 import android.text.TextUtils;
 import android.util.Log;
+import android.widget.Switch;
 
 import androidx.annotation.Nullable;
 import androidx.annotation.VisibleForTesting;
@@ -63,9 +64,6 @@ public class DreamTile extends QSTileImpl<QSTile.BooleanState> {
     public static final String TILE_SPEC = "dream";
 
     private static final String LOG_TAG = "QSDream";
-    // TODO: consider 1 animated icon instead
-    private final Icon mIconDocked = ResourceIcon.get(R.drawable.ic_qs_screen_saver);
-    private final Icon mIconUndocked = ResourceIcon.get(R.drawable.ic_qs_screen_saver_undocked);
     private final IDreamManager mDreamManager;
     private final BroadcastDispatcher mBroadcastDispatcher;
     private final UserSettingObserver mEnabledSettingObserver;
@@ -169,13 +167,16 @@ public class DreamTile extends QSTileImpl<QSTile.BooleanState> {
         state.label = getTileLabel();
         state.secondaryLabel = getActiveDreamName();
         state.contentDescription = getContentDescription(state.secondaryLabel);
-        state.icon = mIsDocked ? mIconDocked : mIconUndocked;
+        // TODO: consider 1 animated icon instead
+        state.icon = maybeLoadResourceIcon(mIsDocked
+                ? R.drawable.ic_qs_screen_saver : R.drawable.ic_qs_screen_saver_undocked);
 
         if (getActiveDream() == null || !isScreensaverEnabled()) {
             state.state = Tile.STATE_UNAVAILABLE;
         } else {
             state.state = isDreaming() ? Tile.STATE_ACTIVE : Tile.STATE_INACTIVE;
         }
+        state.expandedAccessibilityClassName = Switch.class.getName();
     }
 
     @Nullable

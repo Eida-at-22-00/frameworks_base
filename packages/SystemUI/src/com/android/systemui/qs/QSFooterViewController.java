@@ -16,9 +16,12 @@
 
 package com.android.systemui.qs;
 
+import static com.android.systemui.Flags.gsfQuickSettings;
+
 import android.content.ClipData;
 import android.content.ClipboardManager;
 import android.content.Context;
+import android.graphics.Typeface;
 import android.provider.Settings;
 import android.text.InputType;
 import android.text.TextUtils;
@@ -76,6 +79,9 @@ public class QSFooterViewController extends ViewController<QSFooterView> impleme
         mSystemUIDialogFactory = systemUIDialogFactory;
 
         mBuildText = mView.findViewById(R.id.build);
+        if (gsfQuickSettings()) {
+            mBuildText.setTypeface(Typeface.create("gsf-body-medium", Typeface.NORMAL));
+        }
         mPageIndicator = mView.findViewById(R.id.footer_page_indicator);
         mEditButton = mView.findViewById(android.R.id.edit);
     }

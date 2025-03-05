@@ -32,7 +32,6 @@ import static com.android.keyguard.KeyguardUpdateMonitor.BIOMETRIC_HELP_FACE_NOT
 import static com.android.keyguard.KeyguardUpdateMonitor.BIOMETRIC_HELP_FACE_NOT_RECOGNIZED;
 import static com.android.keyguard.KeyguardUpdateMonitor.BIOMETRIC_HELP_FINGERPRINT_NOT_RECOGNIZED;
 import static com.android.systemui.DejankUtils.whitelistIpcs;
-import static com.android.systemui.flags.Flags.LOCKSCREEN_WALLPAPER_DREAM_ENABLED;
 import static com.android.systemui.keyguard.KeyguardIndicationRotateTextViewController.IMPORTANT_MSG_MIN_DURATION;
 import static com.android.systemui.keyguard.KeyguardIndicationRotateTextViewController.INDICATION_IS_DISMISSIBLE;
 import static com.android.systemui.keyguard.KeyguardIndicationRotateTextViewController.INDICATION_TYPE_ADAPTIVE_AUTH;
@@ -118,6 +117,7 @@ import com.android.systemui.statusbar.phone.KeyguardBypassController;
 import com.android.systemui.statusbar.phone.KeyguardIndicationTextView;
 import com.android.systemui.statusbar.phone.StatusBarKeyguardViewManager;
 import com.android.systemui.statusbar.policy.KeyguardStateController;
+import com.android.systemui.user.domain.interactor.UserLogoutInteractor;
 import com.android.systemui.util.AlarmTimeout;
 import com.android.systemui.util.concurrency.DelayableExecutor;
 import com.android.systemui.util.wakelock.SettableWakeLock;
@@ -164,6 +164,7 @@ public class KeyguardIndicationController {
     private final KeyguardLogger mKeyguardLogger;
     private final UserTracker mUserTracker;
     private final BouncerMessageInteractor mBouncerMessageInteractor;
+
     private ViewGroup mIndicationArea;
     private KeyguardIndicationTextView mTopIndicationView;
     private KeyguardIndicationTextView mLockScreenIndicationView;
@@ -189,6 +190,7 @@ public class KeyguardIndicationController {
     private final BiometricMessageInteractor mBiometricMessageInteractor;
     private DeviceEntryFingerprintAuthInteractor mDeviceEntryFingerprintAuthInteractor;
     private DeviceEntryFaceAuthInteractor mDeviceEntryFaceAuthInteractor;
+    private final UserLogoutInteractor mUserLogoutInteractor;
     private String mPersistentUnlockMessage;
     private String mAlignmentIndication;
     private boolean mForceIsDismissible;
@@ -216,7 +218,7 @@ public class KeyguardIndicationController {
     private boolean mEnableBatteryDefender;
     private boolean mIncompatibleCharger;
     private int mChargingWattage;
-    private int mBatteryLevel;
+    private int mBatteryLevel = -1;
     private boolean mBatteryPresent = true;
     protected long mChargingTimeRemaining;
     private Pair<String, BiometricSourceType> mBiometricErrorMessageToShowOnScreenOn;
@@ -230,17 +232,7 @@ public class KeyguardIndicationController {
     private KeyguardUpdateMonitorCallback mUpdateMonitorCallback;
 
     private boolean mDozing;
-    private boolean mIsActiveDreamLockscreenHosted;
     private final ScreenLifecycle mScreenLifecycle;
-    @VisibleForTesting
-    final Consumer<Boolean> mIsActiveDreamLockscreenHostedCallback =
-            (Boolean isLockscreenHosted) -> {
-                if (mIsActiveDreamLockscreenHosted == isLockscreenHosted) {
-                    return;
-                }
-                mIsActiveDreamLockscreenHosted = isLockscreenHosted;
-                updateDeviceEntryIndication(false);
-            };
     @VisibleForTesting
     final Consumer<Set<Integer>> mCoExAcquisitionMsgIdsToShowCallback =
             (Set<Integer> coExFaceAcquisitionMsgIdsToShow) -> mCoExFaceAcquisitionMsgIdsToShow =
@@ -250,6 +242,13 @@ public class KeyguardIndicationController {
             (Boolean isEngaged) -> {
                 if (!isEngaged) {
                     showTrustAgentErrorMessage(mTrustAgentErrorMessage);
+                }
+            };
+    @VisibleForTesting
+    final Consumer<Boolean> mIsLogoutEnabledCallback =
+            (Boolean isLogoutEnabled) -> {
+                if (mVisible) {
+                    updateDeviceEntryIndication(false);
                 }
             };
     private final ScreenLifecycle.Observer mScreenObserver = new ScreenLifecycle.Observer() {
@@ -314,7 +313,8 @@ public class KeyguardIndicationController {
             KeyguardInteractor keyguardInteractor,
             BiometricMessageInteractor biometricMessageInteractor,
             DeviceEntryFingerprintAuthInteractor deviceEntryFingerprintAuthInteractor,
-            DeviceEntryFaceAuthInteractor deviceEntryFaceAuthInteractor
+            DeviceEntryFaceAuthInteractor deviceEntryFaceAuthInteractor,
+            UserLogoutInteractor userLogoutInteractor
     ) {
         mContext = context;
         mBroadcastDispatcher = broadcastDispatcher;
@@ -346,6 +346,8 @@ public class KeyguardIndicationController {
         mBiometricMessageInteractor = biometricMessageInteractor;
         mDeviceEntryFingerprintAuthInteractor = deviceEntryFingerprintAuthInteractor;
         mDeviceEntryFaceAuthInteractor = deviceEntryFaceAuthInteractor;
+        mUserLogoutInteractor = userLogoutInteractor;
+
 
         mFaceAcquiredMessageDeferral = faceHelpMessageDeferral.create();
 
@@ -427,16 +429,15 @@ public class KeyguardIndicationController {
             intentFilter.addAction(Intent.ACTION_USER_REMOVED);
             mBroadcastDispatcher.registerReceiver(mBroadcastReceiver, intentFilter);
         }
-        if (mFeatureFlags.isEnabled(LOCKSCREEN_WALLPAPER_DREAM_ENABLED)) {
-            collectFlow(mIndicationArea, mKeyguardInteractor.isActiveDreamLockscreenHosted(),
-                    mIsActiveDreamLockscreenHostedCallback);
-        }
 
         collectFlow(mIndicationArea,
                 mBiometricMessageInteractor.getCoExFaceAcquisitionMsgIdsToShow(),
                 mCoExAcquisitionMsgIdsToShowCallback);
         collectFlow(mIndicationArea, mDeviceEntryFingerprintAuthInteractor.isEngaged(),
                 mIsFingerprintEngagedCallback);
+        collectFlow(mIndicationArea,
+                mUserLogoutInteractor.isLogoutEnabled(),
+                mIsLogoutEnabledCallback);
     }
 
     /**
@@ -638,10 +639,11 @@ public class KeyguardIndicationController {
     }
 
     private void updateLockScreenUserLockedMsg(int userId) {
-        boolean userUnlocked = mKeyguardUpdateMonitor.isUserUnlocked(userId);
+        boolean userStorageUnlocked = mKeyguardUpdateMonitor.isUserUnlocked(userId);
         boolean encryptedOrLockdown = mKeyguardUpdateMonitor.isEncryptedOrLockdown(userId);
-        mKeyguardLogger.logUpdateLockScreenUserLockedMsg(userId, userUnlocked, encryptedOrLockdown);
-        if (!userUnlocked || encryptedOrLockdown) {
+        mKeyguardLogger.logUpdateLockScreenUserLockedMsg(userId, userStorageUnlocked,
+                encryptedOrLockdown);
+        if (!userStorageUnlocked || encryptedOrLockdown) {
             mRotateTextViewController.updateIndication(
                     INDICATION_TYPE_USER_LOCKED,
                     new KeyguardIndication.Builder()
@@ -777,7 +779,7 @@ public class KeyguardIndicationController {
                                 if (mFalsingManager.isFalseTap(LOW_PENALTY)) {
                                     return;
                                 }
-                                mDevicePolicyManager.logoutUser();
+                                mUserLogoutInteractor.logOut();
                             })
                             .build(),
                     false);
@@ -1035,12 +1037,6 @@ public class KeyguardIndicationController {
             return;
         }
 
-        // Device is dreaming and the dream is hosted in lockscreen
-        if (mIsActiveDreamLockscreenHosted) {
-            mIndicationArea.setVisibility(GONE);
-            return;
-        }
-
         // A few places might need to hide the indication, so always start by making it visible
         mIndicationArea.setVisibility(VISIBLE);
 
@@ -1056,12 +1052,16 @@ public class KeyguardIndicationController {
             } else if (!TextUtils.isEmpty(mTransientIndication)) {
                 newIndication = mTransientIndication;
             } else if (!mBatteryPresent) {
-                // If there is no battery detected, hide the indication and bail
+                // If there is no battery detected, hide the indication area and bail
                 mIndicationArea.setVisibility(GONE);
                 return;
             } else if (!TextUtils.isEmpty(mAlignmentIndication)) {
                 useMisalignmentColor = true;
                 newIndication = mAlignmentIndication;
+            } else if (mBatteryLevel == -1) {
+                // If the battery level is not initialized, hide the indication area
+                mIndicationArea.setVisibility(GONE);
+                return;
             } else if (mPowerPluggedIn || mEnableBatteryDefender) {
                 newIndication = computePowerIndication();
             } else {
@@ -1273,7 +1273,6 @@ public class KeyguardIndicationController {
         pw.println("  mBiometricMessageFollowUp: " + mBiometricMessageFollowUp);
         pw.println("  mBatteryLevel: " + mBatteryLevel);
         pw.println("  mBatteryPresent: " + mBatteryPresent);
-        pw.println("  mIsActiveDreamLockscreenHosted: " + mIsActiveDreamLockscreenHosted);
         pw.println("  AOD text: " + (
                 mTopIndicationView == null ? null : mTopIndicationView.getText()));
         pw.println("  computePowerIndication(): " + computePowerIndication());
@@ -1555,13 +1554,6 @@ public class KeyguardIndicationController {
 
         @Override
         public void onUserUnlocked() {
-            if (mVisible) {
-                updateDeviceEntryIndication(false);
-            }
-        }
-
-        @Override
-        public void onLogoutEnabledChanged() {
             if (mVisible) {
                 updateDeviceEntryIndication(false);
             }

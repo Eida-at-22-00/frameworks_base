@@ -647,7 +647,8 @@ public class BackupManagerService extends IBackupManager.Stub {
                 getServiceForUserIfCallerHasPermission(userId, "agentConnected()");
 
         if (userBackupManagerService != null) {
-            userBackupManagerService.agentConnected(packageName, agentBinder);
+            userBackupManagerService.getBackupAgentConnectionManager().agentConnected(packageName,
+                    agentBinder);
         }
     }
 
@@ -672,7 +673,8 @@ public class BackupManagerService extends IBackupManager.Stub {
                 getServiceForUserIfCallerHasPermission(userId, "agentDisconnected()");
 
         if (userBackupManagerService != null) {
-            userBackupManagerService.agentDisconnected(packageName);
+            userBackupManagerService.getBackupAgentConnectionManager().agentDisconnected(
+                    packageName);
         }
     }
 

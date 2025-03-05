@@ -43,7 +43,7 @@ import android.os.UserHandle;
 import android.provider.Settings;
 
 import com.android.server.LocalServices;
-import com.android.systemui.R;
+import com.android.systemui.res.R;
 import com.android.systemui.statusbar.policy.BatteryController;
 import com.android.systemui.statusbar.policy.BluetoothController;
 

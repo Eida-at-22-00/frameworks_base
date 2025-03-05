@@ -29,6 +29,7 @@ import com.android.systemui.people.PeopleProvider;
 import com.android.systemui.startable.Dependencies;
 import com.android.systemui.statusbar.NotificationInsetsModule;
 import com.android.systemui.statusbar.QsFrameTranslateModule;
+import com.android.systemui.statusbar.phone.ConfigurationForwarder;
 import com.android.systemui.statusbar.policy.ConfigurationController;
 import com.android.wm.shell.back.BackAnimation;
 import com.android.wm.shell.bubbles.Bubbles;
@@ -66,7 +67,6 @@ import javax.inject.Provider;
         DependencyProvider.class,
         NotificationInsetsModule.class,
         QsFrameTranslateModule.class,
-        SystemUIBinder.class,
         SystemUIModule.class,
         SystemUICoreStartableModule.class,
         ReferenceSystemUIModule.class})
@@ -127,11 +127,18 @@ public interface SysUIComponent {
     BootCompleteCacheImpl provideBootCacheImpl();
 
     /**
-     * Creates a ContextComponentHelper.
+     * Creates a ConfigurationController.
      */
     @SysUISingleton
     @GlobalConfig
     ConfigurationController getConfigurationController();
+
+    /**
+     * Creates a ConfigurationForwarder.
+     */
+    @SysUISingleton
+    @GlobalConfig
+    ConfigurationForwarder getConfigurationForwarder();
 
     /**
      * Creates a ContextComponentHelper.

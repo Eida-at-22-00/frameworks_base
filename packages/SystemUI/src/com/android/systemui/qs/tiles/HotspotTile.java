@@ -156,10 +156,10 @@ public class HotspotTile extends SecureQSTile<BooleanState> {
         state.label = mContext.getString(R.string.quick_settings_hotspot_label);
         state.isTransient = isTransient;
         if (state.isTransient) {
-            state.icon = ResourceIcon.get(
+            state.icon = maybeLoadResourceIcon(
                     R.drawable.qs_hotspot_icon_search);
         } else {
-            state.icon = ResourceIcon.get(state.value
+            state.icon = maybeLoadResourceIcon(state.value
                     ? R.drawable.qs_hotspot_icon_on : R.drawable.qs_hotspot_icon_off);
         }
         state.expandedAccessibilityClassName = Switch.class.getName();

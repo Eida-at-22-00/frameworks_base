@@ -56,7 +56,8 @@ public class NfcTile extends SecureQSTile<BooleanState> {
     public static final String TILE_SPEC = "nfc";
 
     private static final String NFC = TILE_SPEC;
-    private final Icon mIcon = ResourceIcon.get(R.drawable.ic_qs_nfc);
+    @Nullable
+    private Icon mIcon = null;
 
     @Nullable
     private NfcAdapter mAdapter;
@@ -142,6 +143,10 @@ public class NfcTile extends SecureQSTile<BooleanState> {
 
     @Override
     protected void handleUpdateState(BooleanState state, Object arg) {
+        if (mIcon == null) {
+            mIcon = maybeLoadResourceIcon(R.drawable.ic_qs_nfc);
+        }
+
         state.value = getAdapter() != null && getAdapter().isEnabled();
         state.state = getAdapter() == null
                 ? Tile.STATE_UNAVAILABLE

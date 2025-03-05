@@ -46,6 +46,7 @@ import android.widget.ImageView;
 
 import androidx.annotation.Nullable;
 
+import com.android.internal.annotations.VisibleForTesting;
 import com.android.internal.display.BrightnessSynchronizer;
 import com.android.internal.logging.MetricsLogger;
 import com.android.internal.logging.nano.MetricsProto.MetricsEvent;
@@ -58,6 +59,7 @@ import com.android.systemui.dagger.qualifiers.Main;
 import com.android.systemui.log.LogBuffer;
 import com.android.systemui.log.core.LogLevel;
 import com.android.systemui.log.core.LogMessage;
+import com.android.systemui.res.R;
 import com.android.systemui.settings.DisplayTracker;
 import com.android.systemui.settings.UserTracker;
 import com.android.systemui.util.settings.SecureSettings;
@@ -117,6 +119,7 @@ public class BrightnessController implements ToggleSlider.Listener, MirroredBrig
     private boolean mControlValueInitialized;
     private float mBrightnessMin = PowerManager.BRIGHTNESS_MIN;
     private float mBrightnessMax = PowerManager.BRIGHTNESS_MAX;
+    private boolean mIsBrightnessOverriddenByWindow = false;
 
     private ValueAnimator mSliderAnimator;
     private boolean mUserChangedBrightness;
@@ -254,12 +257,14 @@ public class BrightnessController implements ToggleSlider.Listener, MirroredBrig
         @Override
         public void run() {
             final boolean inVrMode = mIsVrModeEnabled;
-            final BrightnessInfo info = mContext.getDisplay().getBrightnessInfo();
+            final BrightnessInfo info = getBrightnessInfo();
             if (info == null) {
                 return;
             }
             mBrightnessMax = info.brightnessMaximum;
             mBrightnessMin = info.brightnessMinimum;
+            mIsBrightnessOverriddenByWindow = info.isBrightnessOverrideByWindow;
+
             // Value is passed as intbits, since this is what the message takes.
             final int valueAsIntBits = Float.floatToIntBits(info.brightness);
             mMainHandler.obtainMessage(MSG_UPDATE_SLIDER, valueAsIntBits,
@@ -386,7 +391,19 @@ public class BrightnessController implements ToggleSlider.Listener, MirroredBrig
     public void onChanged(boolean tracking, int value, boolean stopTracking) {
         boolean starting = !mTrackingTouch && tracking;
         mTrackingTouch = tracking;
-        if (mExternalChange) return;
+        if (starting) {
+            if (Flags.showToastWhenAppControlBrightness()) {
+                // Showing the warning toast if the current running app window has
+                // controlled the brightness value.
+                if (mIsBrightnessOverriddenByWindow) {
+                    mControl.showToast(R.string.quick_settings_brightness_unable_adjust_msg);
+                }
+            }
+        }
+        if (mExternalChange
+                || (Flags.showToastWhenAppControlBrightness() && mIsBrightnessOverriddenByWindow)) {
+            return;
+        }
 
         if (mSliderAnimator != null) {
             mSliderAnimator.cancel();
@@ -461,9 +478,14 @@ public class BrightnessController implements ToggleSlider.Listener, MirroredBrig
     private void updateIcon(boolean automatic) {
         if (mIcon != null) {
             mIcon.setImageResource(automatic ?
-                    com.android.systemui.R.drawable.ic_qs_brightness_auto_on_new :
-                    com.android.systemui.R.drawable.ic_qs_brightness_auto_off_new);
+                    R.drawable.ic_qs_brightness_auto_on_new :
+                    R.drawable.ic_qs_brightness_auto_off_new);
         }
+    }
+
+    @VisibleForTesting
+    BrightnessInfo getBrightnessInfo() {
+        return mContext.getDisplay().getBrightnessInfo();
     }
 
     private void updateVrMode(boolean isEnabled) {

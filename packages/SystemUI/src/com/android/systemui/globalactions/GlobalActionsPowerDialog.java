@@ -51,7 +51,7 @@ public class GlobalActionsPowerDialog {
         Resources res = context.getResources();
 
         Dialog dialog = new Dialog(context,
-                com.android.systemui.R.style.Theme_SystemUI_Dialog_GlobalActionsLite);
+                com.android.systemui.res.R.style.Theme_SystemUI_Dialog_GlobalActionsLite);
         dialog.requestWindowFeature(Window.FEATURE_NO_TITLE);
         dialog.setContentView(listView);
 

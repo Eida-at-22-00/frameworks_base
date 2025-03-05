@@ -31,7 +31,7 @@ import com.android.internal.graphics.ColorUtils
 import com.android.app.animation.Interpolators
 import com.android.settingslib.Utils
 import com.android.systemui.surfaceeffects.ripple.RippleShader
-import com.android.systemui.R
+import com.android.systemui.res.R
 
 private const val RIPPLE_SPARKLE_STRENGTH: Float = 0.8f
 

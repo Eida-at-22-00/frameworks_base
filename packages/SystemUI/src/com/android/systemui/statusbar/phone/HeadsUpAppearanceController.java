@@ -16,7 +16,7 @@
 
 package com.android.systemui.statusbar.phone;
 
-import static com.android.systemui.statusbar.phone.fragment.dagger.StatusBarFragmentModule.OPERATOR_NAME_FRAME_VIEW;
+import static com.android.systemui.statusbar.phone.fragment.dagger.HomeStatusBarModule.OPERATOR_NAME_FRAME_VIEW;
 
 import android.graphics.Rect;
 import android.util.MathUtils;
@@ -26,8 +26,8 @@ import androidx.annotation.NonNull;
 
 import com.android.internal.annotations.VisibleForTesting;
 import com.android.internal.widget.ViewClippingUtil;
+import com.android.systemui.dagger.qualifiers.DisplaySpecific;
 import com.android.systemui.dagger.qualifiers.RootView;
-import com.android.systemui.flags.FeatureFlagsClassic;
 import com.android.systemui.plugins.DarkIconDispatcher;
 import com.android.systemui.plugins.statusbar.StatusBarStateController;
 import com.android.systemui.res.R;
@@ -37,19 +37,21 @@ import com.android.systemui.statusbar.CommandQueue;
 import com.android.systemui.statusbar.CrossFadeHelper;
 import com.android.systemui.statusbar.HeadsUpStatusBarView;
 import com.android.systemui.statusbar.StatusBarState;
+import com.android.systemui.statusbar.core.StatusBarRootModernization;
 import com.android.systemui.statusbar.notification.NotificationWakeUpCoordinator;
 import com.android.systemui.statusbar.notification.SourceType;
 import com.android.systemui.statusbar.notification.collection.NotificationEntry;
 import com.android.systemui.statusbar.notification.domain.interactor.HeadsUpNotificationIconInteractor;
+import com.android.systemui.statusbar.notification.headsup.HeadsUpManager;
+import com.android.systemui.statusbar.notification.headsup.OnHeadsUpChangedListener;
+import com.android.systemui.statusbar.notification.headsup.PinnedStatus;
 import com.android.systemui.statusbar.notification.row.ExpandableNotificationRow;
 import com.android.systemui.statusbar.notification.row.shared.AsyncGroupHeaderViewInflation;
 import com.android.systemui.statusbar.notification.stack.NotificationRoundnessManager;
 import com.android.systemui.statusbar.notification.stack.NotificationStackScrollLayoutController;
-import com.android.systemui.statusbar.phone.fragment.dagger.StatusBarFragmentScope;
+import com.android.systemui.statusbar.phone.fragment.dagger.HomeStatusBarScope;
 import com.android.systemui.statusbar.policy.Clock;
-import com.android.systemui.statusbar.policy.HeadsUpManager;
 import com.android.systemui.statusbar.policy.KeyguardStateController;
-import com.android.systemui.statusbar.policy.OnHeadsUpChangedListener;
 import com.android.systemui.util.ViewController;
 
 import java.util.ArrayList;
@@ -64,7 +66,7 @@ import javax.inject.Named;
  * Controls the appearance of heads up notifications in the icon area and the header itself.
  * It also controls the roundness of the heads up notifications and the pulsing notifications.
  */
-@StatusBarFragmentScope
+@HomeStatusBarScope
 public class HeadsUpAppearanceController extends ViewController<HeadsUpStatusBarView>
         implements OnHeadsUpChangedListener,
         DarkIconDispatcher.DarkReceiver,
@@ -96,7 +98,7 @@ public class HeadsUpAppearanceController extends ViewController<HeadsUpStatusBar
     @VisibleForTesting
     float mAppearFraction;
     private ExpandableNotificationRow mTrackedChild;
-    private boolean mShown;
+    private PinnedStatus mPinnedStatus = PinnedStatus.NotPinned;
     private final ViewClippingUtil.ClippingParameters mParentClippingParams =
             new ViewClippingUtil.ClippingParameters() {
                 @Override
@@ -106,7 +108,6 @@ public class HeadsUpAppearanceController extends ViewController<HeadsUpStatusBar
             };
     private boolean mAnimationsEnabled = true;
     private final KeyguardStateController mKeyguardStateController;
-    private final FeatureFlagsClassic mFeatureFlags;
     private final HeadsUpNotificationIconInteractor mHeadsUpNotificationIconInteractor;
 
     @VisibleForTesting
@@ -117,7 +118,7 @@ public class HeadsUpAppearanceController extends ViewController<HeadsUpStatusBar
             PhoneStatusBarTransitions phoneStatusBarTransitions,
             KeyguardBypassController bypassController,
             NotificationWakeUpCoordinator wakeUpCoordinator,
-            DarkIconDispatcher darkIconDispatcher,
+            @DisplaySpecific DarkIconDispatcher darkIconDispatcher,
             KeyguardStateController keyguardStateController,
             CommandQueue commandQueue,
             NotificationStackScrollLayoutController stackScrollerController,
@@ -125,7 +126,6 @@ public class HeadsUpAppearanceController extends ViewController<HeadsUpStatusBar
             NotificationRoundnessManager notificationRoundnessManager,
             HeadsUpStatusBarView headsUpStatusBarView,
             Clock clockView,
-            FeatureFlagsClassic featureFlags,
             HeadsUpNotificationIconInteractor headsUpNotificationIconInteractor,
             @Named(OPERATOR_NAME_FRAME_VIEW) Optional<View> operatorNameViewOptional,
             @RootView PhoneStatusBarView statusBarView) {
@@ -144,7 +144,6 @@ public class HeadsUpAppearanceController extends ViewController<HeadsUpStatusBar
 
         mStackScrollerController = stackScrollerController;
         mShadeViewController = shadeViewController;
-        mFeatureFlags = featureFlags;
         mHeadsUpNotificationIconInteractor = headsUpNotificationIconInteractor;
         mStackScrollerController.setHeadsUpAppearanceController(this);
         mClockController = new ClockController(statusBarView.getContext(), statusBarView);
@@ -156,7 +155,7 @@ public class HeadsUpAppearanceController extends ViewController<HeadsUpStatusBar
             public void onLayoutChange(View v, int left, int top, int right, int bottom,
                     int oldLeft, int oldTop, int oldRight, int oldBottom) {
                 if (shouldBeVisible()) {
-                    updateTopEntry("onLayoutChange");
+                    updateTopEntry();
 
                     // trigger scroller to notify the latest panel translation
                     mStackScrollerController.requestLayout();
@@ -206,7 +205,7 @@ public class HeadsUpAppearanceController extends ViewController<HeadsUpStatusBar
 
     @Override
     public void onHeadsUpPinned(NotificationEntry entry) {
-        updateTopEntry("onHeadsUpPinned");
+        updateTopEntry();
         updateHeader(entry);
         updateHeadsUpAndPulsingRoundness(entry);
     }
@@ -217,7 +216,7 @@ public class HeadsUpAppearanceController extends ViewController<HeadsUpStatusBar
         mPhoneStatusBarTransitions.onHeadsUpStateChanged(isHeadsUp);
     }
 
-    private void updateTopEntry(String reason) {
+    private void updateTopEntry() {
         NotificationEntry newEntry = null;
         if (shouldBeVisible()) {
             newEntry = mHeadsUpManager.getTopEntry();
@@ -225,36 +224,44 @@ public class HeadsUpAppearanceController extends ViewController<HeadsUpStatusBar
         NotificationEntry previousEntry = mView.getShowingEntry();
         mView.setEntry(newEntry);
         if (newEntry != previousEntry) {
-            boolean animateIsolation = false;
             if (newEntry == null) {
                 // no heads up anymore, lets start the disappear animation
-
-                setShown(false);
-                animateIsolation = !isExpanded();
+                setPinnedStatus(PinnedStatus.NotPinned);
             } else if (previousEntry == null) {
                 // We now have a headsUp and didn't have one before. Let's start the disappear
                 // animation
-                setShown(true);
-                animateIsolation = !isExpanded();
+                setPinnedStatus(PinnedStatus.PinnedBySystem);
             }
-            mHeadsUpNotificationIconInteractor.setIsolatedIconNotificationKey(
-                    newEntry == null ? null : newEntry.getRepresentativeEntry().getKey());
+
+            String isolatedIconKey;
+            if (newEntry != null) {
+                isolatedIconKey = newEntry.getRepresentativeEntry().getKey();
+            } else {
+                isolatedIconKey = null;
+            }
+            mHeadsUpNotificationIconInteractor.setIsolatedIconNotificationKey(isolatedIconKey);
         }
     }
 
-    private void setShown(boolean isShown) {
-        if (mShown != isShown) {
+    private void setPinnedStatus(PinnedStatus pinnedStatus) {
+        if (mPinnedStatus != pinnedStatus) {
             View clockView = mClockController.getClock();
             boolean isRightClock = clockView.getId() == R.id.clock_right;
-            mShown = isShown;
-            if (isShown) {
+            mPinnedStatus = pinnedStatus;
+            if (pinnedStatus.isPinned()) {
                 updateParentClipping(false /* shouldClip */);
                 mView.setVisibility(View.VISIBLE);
                 show(mView);
-                if (!isRightClock) hide(clockView, View.INVISIBLE);
+                if (!StatusBarRootModernization.isEnabled()) {
+                    hide(clockView, View.INVISIBLE);
+                } else if (!isRightClock) {
+                    hide(clockView, View.INVISIBLE);
+                } 
                 mOperatorNameViewOptional.ifPresent(view -> hide(view, View.INVISIBLE));
             } else {
-                if (!isRightClock) show(clockView);
+                if (!StatusBarRootModernization.isEnabled() && !isRightClock) {
+                    show(clockView);
+                }
                 mOperatorNameViewOptional.ifPresent(this::show);
                 hide(mView, View.GONE, () -> {
                     updateParentClipping(true /* shouldClip */);
@@ -327,8 +334,8 @@ public class HeadsUpAppearanceController extends ViewController<HeadsUpStatusBar
     }
 
     @VisibleForTesting
-    public boolean isShown() {
-        return mShown;
+    public PinnedStatus getPinnedStatus() {
+        return mPinnedStatus;
     }
 
     /**
@@ -352,7 +359,7 @@ public class HeadsUpAppearanceController extends ViewController<HeadsUpStatusBar
 
     @Override
     public void onHeadsUpUnPinned(NotificationEntry entry) {
-        updateTopEntry("onHeadsUpUnPinned");
+        updateTopEntry();
         updateHeader(entry);
         updateHeadsUpAndPulsingRoundness(entry);
     }
@@ -370,7 +377,7 @@ public class HeadsUpAppearanceController extends ViewController<HeadsUpStatusBar
             updateHeadsUpHeaders();
         }
         if (isExpanded() != oldIsExpanded) {
-            updateTopEntry("setAppearFraction");
+            updateTopEntry();
         }
     }
 
@@ -444,11 +451,11 @@ public class HeadsUpAppearanceController extends ViewController<HeadsUpStatusBar
     }
 
     public void onStateChanged() {
-        updateTopEntry("onStateChanged");
+        updateTopEntry();
     }
 
     @Override
     public void onFullyHiddenChanged(boolean isFullyHidden) {
-        updateTopEntry("onFullyHiddenChanged");
+        updateTopEntry();
     }
 }

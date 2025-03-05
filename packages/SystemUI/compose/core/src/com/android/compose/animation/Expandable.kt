@@ -78,6 +78,8 @@ import androidx.lifecycle.findViewTreeLifecycleOwner
 import androidx.lifecycle.findViewTreeViewModelStoreOwner
 import androidx.lifecycle.setViewTreeLifecycleOwner
 import androidx.lifecycle.setViewTreeViewModelStoreOwner
+import androidx.savedstate.findViewTreeSavedStateRegistryOwner
+import androidx.savedstate.setViewTreeSavedStateRegistryOwner
 import com.android.systemui.animation.Expandable
 import com.android.systemui.animation.TransitionAnimator
 import kotlin.math.max
@@ -180,9 +182,7 @@ fun Expandable(
     val wrappedContent =
         remember(content) {
             movableContentOf { expandable: Expandable ->
-                CompositionLocalProvider(
-                    LocalContentColor provides contentColor,
-                ) {
+                CompositionLocalProvider(LocalContentColor provides contentColor) {
                     // We make sure that the content itself (wrapped by the background) is at least
                     // 40.dp, which is the same as the M3 buttons. This applies even if onClick is
                     // null, to make it easier to write expandables that are sometimes clickable and
@@ -260,7 +260,7 @@ fun Expandable(
                 modifier
                     .updateExpandableSize()
                     .then(minInteractiveSizeModifier)
-                    .drawWithContent { /* Don't draw anything when the dialog is shown. */}
+                    .drawWithContent { /* Don't draw anything when the dialog is shown. */ }
                     .onGloballyPositioned {
                         controller.boundsInComposeViewRoot.value = it.boundsInRoot()
                     }
@@ -312,7 +312,7 @@ fun Expandable(
                     .border(controller)
                     .onGloballyPositioned {
                         controller.boundsInComposeViewRoot.value = it.boundsInRoot()
-                    },
+                    }
             ) {
                 wrappedContent(controller.expandable)
             }
@@ -389,19 +389,14 @@ private fun AnimatedContentInOverlay(
                 }
 
             // Set the owners.
-            val overlayViewGroup =
-                getOverlayViewGroup(
-                    context,
-                    overlay,
-                )
+            val overlayViewGroup = getOverlayViewGroup(context, overlay)
 
             overlayViewGroup.setViewTreeLifecycleOwner(composeViewRoot.findViewTreeLifecycleOwner())
             overlayViewGroup.setViewTreeViewModelStoreOwner(
                 composeViewRoot.findViewTreeViewModelStoreOwner()
             )
-            ViewTreeSavedStateRegistryOwner.set(
-                overlayViewGroup,
-                ViewTreeSavedStateRegistryOwner.get(composeViewRoot),
+            overlayViewGroup.setViewTreeSavedStateRegistryOwner(
+                composeViewRoot.findViewTreeSavedStateRegistryOwner()
             )
 
             composeView.setParentCompositionContext(compositionContext)
@@ -429,10 +424,7 @@ private fun AnimatedContentInOverlay(
     }
 }
 
-internal fun measureAndLayoutComposeViewInOverlay(
-    view: View,
-    state: TransitionAnimator.State,
-) {
+internal fun measureAndLayoutComposeViewInOverlay(view: View, state: TransitionAnimator.State) {
     val exactWidth = state.width
     val exactHeight = state.height
     view.measure(
@@ -498,7 +490,7 @@ private fun ContentDrawScope.drawBackground(
                 topLeft = Offset(halfStroke, halfStroke),
                 size = Size(size.width - strokeWidth, size.height - strokeWidth),
                 cornerRadius = cornerRadius.shrink(halfStroke),
-                style = borderStroke
+                style = borderStroke,
             )
         }
     } else {
@@ -518,11 +510,7 @@ private fun ContentDrawScope.drawBackground(
         if (border != null) {
             // Copied from androidx.compose.foundation.Border.kt.
             val strokeWidth = border.width.toPx()
-            val path =
-                createRoundRectPath(
-                    (outline as Outline.Rounded).roundRect,
-                    strokeWidth,
-                )
+            val path = createRoundRectPath((outline as Outline.Rounded).roundRect, strokeWidth)
 
             drawPath(path, border.brush)
         }
@@ -534,10 +522,7 @@ private fun ContentDrawScope.drawBackground(
  *
  * Copied from androidx.compose.foundation.Border.kt.
  */
-private fun createRoundRectPath(
-    roundedRect: RoundRect,
-    strokeWidth: Float,
-): Path {
+private fun createRoundRectPath(roundedRect: RoundRect, strokeWidth: Float): Path {
     return Path().apply {
         addRoundRect(roundedRect)
         val insetPath =
@@ -556,7 +541,7 @@ private fun createInsetRoundedRect(widthPx: Float, roundedRect: RoundRect) =
         topLeftCornerRadius = roundedRect.topLeftCornerRadius.shrink(widthPx),
         topRightCornerRadius = roundedRect.topRightCornerRadius.shrink(widthPx),
         bottomLeftCornerRadius = roundedRect.bottomLeftCornerRadius.shrink(widthPx),
-        bottomRightCornerRadius = roundedRect.bottomRightCornerRadius.shrink(widthPx)
+        bottomRightCornerRadius = roundedRect.bottomRightCornerRadius.shrink(widthPx),
     )
 
 /**

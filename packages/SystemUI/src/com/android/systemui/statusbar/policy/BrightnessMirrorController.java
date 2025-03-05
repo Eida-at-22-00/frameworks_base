@@ -209,7 +209,7 @@ public class BrightnessMirrorController implements MirrorController {
                 Settings.System.SCREEN_BRIGHTNESS_MODE_MANUAL,
                 UserHandle.USER_CURRENT) != Settings.System.SCREEN_BRIGHTNESS_MODE_MANUAL;
         icon.setImageResource(automatic ?
-                com.android.systemui.R.drawable.ic_qs_brightness_auto_on_new :
-                com.android.systemui.R.drawable.ic_qs_brightness_auto_off_new);
+                com.android.systemui.res.R.drawable.ic_qs_brightness_auto_on_new :
+                com.android.systemui.res.R.drawable.ic_qs_brightness_auto_off_new);
     }
 }

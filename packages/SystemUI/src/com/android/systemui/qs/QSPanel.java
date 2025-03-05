@@ -125,6 +125,8 @@ public class QSPanel extends LinearLayout {
     @Nullable
     private View mMediaViewPlaceHolderForScene;
 
+    private boolean mHadConfigurationChangeWhileDetached;
+
     private final CustomSettingsObserver mCustomSettingsObserver = new CustomSettingsObserver();
     private class CustomSettingsObserver extends ContentObserver {
         CustomSettingsObserver() {
@@ -341,12 +343,6 @@ public class QSPanel extends LinearLayout {
     }
 
     @Override
-    protected void onDetachedFromWindow() {
-        mCustomSettingsObserver.stop();
-        super.onDetachedFromWindow();
-    }
-
-    @Override
     protected void onMeasure(int widthMeasureSpec, int heightMeasureSpec) {
         if (mTileLayout instanceof PagedTileLayout) {
             // Since PageIndicator gets measured before PagedTileLayout, we preemptively set the
@@ -508,8 +504,22 @@ public class QSPanel extends LinearLayout {
     @Override
     protected void onConfigurationChanged(Configuration newConfig) {
         super.onConfigurationChanged(newConfig);
+        if (!isAttachedToWindow()) {
+            mHadConfigurationChangeWhileDetached = true;
+        }
         mOnConfigurationChangedListeners.forEach(
                 listener -> listener.onConfigurationChange(newConfig));
+    }
+
+    final boolean hadConfigurationChangeWhileDetached() {
+        return mHadConfigurationChangeWhileDetached;
+    }
+
+    @Override
+    protected void onDetachedFromWindow() {
+        super.onDetachedFromWindow();
+        mCustomSettingsObserver.stop();
+        mHadConfigurationChangeWhileDetached = false;
     }
 
     @Override

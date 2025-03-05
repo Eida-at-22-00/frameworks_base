@@ -194,7 +194,7 @@ class UdfpsHelper(
                 if (qsExpansion == 1f && !newIsQsExpanded) {
                     newIsQsExpanded = true
                     displayManager.registerDisplayListener(
-                        displayListener, null, DisplayManager.EVENT_FLAG_DISPLAY_BRIGHTNESS
+                        displayListener, null, DisplayManager.PRIVATE_EVENT_FLAG_DISPLAY_BRIGHTNESS
                     )
                     view.isVisible = false
                 } else if (qsExpansion == 0f && newIsQsExpanded) {

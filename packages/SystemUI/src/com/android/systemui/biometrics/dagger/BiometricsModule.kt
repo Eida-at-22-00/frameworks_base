@@ -38,6 +38,7 @@ import com.android.systemui.biometrics.data.repository.FingerprintPropertyReposi
 import com.android.systemui.biometrics.data.repository.FingerprintPropertyRepositoryImpl
 import com.android.systemui.biometrics.data.repository.PromptRepository
 import com.android.systemui.biometrics.data.repository.PromptRepositoryImpl
+import com.android.systemui.biometrics.plugins.AuthContextPlugins
 import com.android.systemui.biometrics.udfps.BoundingBoxOverlapDetector
 import com.android.systemui.biometrics.udfps.EllipseOverlapDetector
 import com.android.systemui.biometrics.udfps.OverlapDetector
@@ -64,7 +65,7 @@ import kotlinx.coroutines.CoroutineDispatcher
 /** Dagger module for all things biometric. */
 @Module
 interface BiometricsModule {
-    /** Starts AuthController.  */
+    /** Starts AuthController. */
     @Binds
     @IntoMap
     @ClassKey(AuthController::class)
@@ -109,8 +110,9 @@ interface BiometricsModule {
     @SysUISingleton
     fun displayStateRepository(impl: DisplayStateRepositoryImpl): DisplayStateRepository
 
-    @BindsOptionalOf
-    fun deviceEntryUnlockTrackerViewBinder(): DeviceEntryUnlockTrackerViewBinder
+    @BindsOptionalOf fun authContextPlugins(): AuthContextPlugins
+
+    @BindsOptionalOf fun deviceEntryUnlockTrackerViewBinder(): DeviceEntryUnlockTrackerViewBinder
 
     companion object {
         /** Background [Executor] for HAL related operations. */
@@ -137,8 +139,7 @@ interface BiometricsModule {
 
         @Provides fun providesUdfpsUtils(): UdfpsUtils = UdfpsUtils()
 
-        @Provides
-        fun provideIconProvider(context: Context): IconProvider = IconProvider(context)
+        @Provides fun provideIconProvider(context: Context): IconProvider = IconProvider(context)
 
         @Provides
         @SysUISingleton
@@ -156,7 +157,7 @@ interface BiometricsModule {
                     EllipseOverlapDetectorParams(
                         minOverlap = values[3],
                         targetSize = values[2],
-                        stepSize = values[4].toInt()
+                        stepSize = values[4].toInt(),
                     )
                 )
             } else {

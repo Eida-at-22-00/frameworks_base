@@ -64,12 +64,11 @@ import com.android.systemui.util.settings.SecureSettings
 import javax.inject.Inject
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.mapLatest
-import kotlinx.coroutines.launch
+import com.android.app.tracing.coroutines.launchTraced as launch
 
 private val TAG: String = MediaHierarchyManager::class.java.simpleName
 
@@ -161,10 +160,10 @@ constructor(
     private var animationStartAlpha = 0.0f
 
     /** The starting location of the cross fade if an animation is running right now. */
-    @MediaLocation private var crossFadeAnimationStartLocation = -1
+    @MediaLocation private var crossFadeAnimationStartLocation = LOCATION_UNKNOWN
 
     /** The end location of the cross fade if an animation is running right now. */
-    @MediaLocation private var crossFadeAnimationEndLocation = -1
+    @MediaLocation private var crossFadeAnimationEndLocation = LOCATION_UNKNOWN
     private var targetBounds: Rect = Rect()
     private val mediaFrame
         get() = mediaCarouselController.mediaFrame
@@ -191,7 +190,7 @@ constructor(
                     animationStartBounds,
                     targetBounds,
                     boundsProgress,
-                    result = currentBounds
+                    result = currentBounds,
                 )
                 resolveClipping(currentClipping)
                 applyState(currentBounds, currentAlpha, clipBounds = currentClipping)
@@ -233,16 +232,16 @@ constructor(
      * The last location where this view was at before going to the desired location. This is useful
      * for guided transitions.
      */
-    @MediaLocation private var previousLocation = -1
+    @MediaLocation private var previousLocation = LOCATION_UNKNOWN
     /** The desired location where the view will be at the end of the transition. */
-    @MediaLocation private var desiredLocation = -1
+    @MediaLocation private var desiredLocation = LOCATION_UNKNOWN
 
     /**
      * The current attachment location where the view is currently attached. Usually this matches
      * the desired location except for animations whenever a view moves to the new desired location,
      * during which it is in [IN_OVERLAY].
      */
-    @MediaLocation private var currentAttachmentLocation = -1
+    @MediaLocation private var currentAttachmentLocation = LOCATION_UNKNOWN
 
     private var inSplitShade = false
 
@@ -634,7 +633,7 @@ constructor(
                             secureSettings.getBoolForUser(
                                 Settings.Secure.MEDIA_CONTROLS_LOCK_SCREEN,
                                 true,
-                                UserHandle.USER_CURRENT
+                                UserHandle.USER_CURRENT,
                             )
                     }
                 }
@@ -642,7 +641,7 @@ constructor(
         secureSettings.registerContentObserverForUserSync(
             Settings.Secure.MEDIA_CONTROLS_LOCK_SCREEN,
             settingsObserver,
-            UserHandle.USER_ALL
+            UserHandle.USER_ALL,
         )
 
         // Listen to the communal UI state. Make sure that communal UI is showing and hub itself is
@@ -658,7 +657,7 @@ constructor(
                     shadeInteractor.shadeExpansion
                         .mapLatest { it < EXPANSION_THRESHOLD }
                         .distinctUntilChanged(),
-                    ::Triple
+                    ::Triple,
                 )
                 .collectLatest { (communalShowing, isDreaming, isShadeExpanding) ->
                     isCommunalShowing = communalShowing
@@ -702,10 +701,10 @@ constructor(
         if (mediaObject.location == desiredLocation) {
             // In case we are overriding a view that is already visible, make sure we attach it
             // to this new host view in the below call
-            desiredLocation = -1
+            desiredLocation = LOCATION_UNKNOWN
         }
         if (mediaObject.location == currentAttachmentLocation) {
-            currentAttachmentLocation = -1
+            currentAttachmentLocation = LOCATION_UNKNOWN
         }
         updateDesiredLocation()
         return viewHost
@@ -747,7 +746,7 @@ constructor(
      */
     private fun updateDesiredLocation(
         forceNoAnimation: Boolean = false,
-        forceStateUpdate: Boolean = false
+        forceStateUpdate: Boolean = false,
     ) =
         traceSection("MediaHierarchyManager#updateDesiredLocation") {
             val desiredLocation = calculateLocation()
@@ -771,7 +770,7 @@ constructor(
                         previousLocation = LOCATION_QQS
                     }
                 }
-                val isNewView = this.desiredLocation == -1
+                val isNewView = this.desiredLocation == LOCATION_UNKNOWN
                 this.desiredLocation = desiredLocation
                 // Let's perform a transition
                 val animate =
@@ -787,7 +786,7 @@ constructor(
                         host,
                         animate,
                         animDuration,
-                        delay
+                        delay,
                     )
                 }
                 performTransitionToNewLocation(isNewView, animate)
@@ -881,7 +880,7 @@ constructor(
 
     private fun shouldAnimateTransition(
         @MediaLocation currentLocation: Int,
-        @MediaLocation previousLocation: Int
+        @MediaLocation previousLocation: Int,
     ): Boolean {
         if (isCurrentlyInGuidedTransformation()) {
             return false
@@ -1003,7 +1002,7 @@ constructor(
         startBounds: Rect,
         endBounds: Rect,
         progress: Float,
-        result: Rect? = null
+        result: Rect? = null,
     ): Rect {
         val left =
             MathUtils.lerp(startBounds.left.toFloat(), endBounds.left.toFloat(), progress).toInt()
@@ -1027,7 +1026,7 @@ constructor(
     }
 
     private fun hasValidStartAndEndLocations(): Boolean {
-        return previousLocation != -1 && desiredLocation != -1
+        return previousLocation != LOCATION_UNKNOWN && desiredLocation != LOCATION_UNKNOWN
     }
 
     /** Calculate the transformation type for the current animation */
@@ -1112,21 +1111,21 @@ constructor(
         bounds: Rect,
         alpha: Float,
         immediately: Boolean = false,
-        clipBounds: Rect = EMPTY_RECT
+        clipBounds: Rect = EMPTY_RECT,
     ) =
         traceSection("MediaHierarchyManager#applyState") {
             currentBounds.set(bounds)
             currentClipping = clipBounds
             carouselAlpha = if (isCurrentlyFading()) alpha else 1.0f
             val onlyUseEndState = !isCurrentlyInGuidedTransformation() || isCurrentlyFading()
-            val startLocation = if (onlyUseEndState) -1 else previousLocation
+            val startLocation = if (onlyUseEndState) LOCATION_UNKNOWN else previousLocation
             val progress = if (onlyUseEndState) 1.0f else getTransformationProgress()
             val endLocation = resolveLocationForFading()
             mediaCarouselController.setCurrentState(
                 startLocation,
                 endLocation,
                 progress,
-                immediately
+                immediately,
             )
             updateHostAttachment()
             if (currentAttachmentLocation == IN_OVERLAY) {
@@ -1138,7 +1137,7 @@ constructor(
                     currentBounds.left,
                     currentBounds.top,
                     currentBounds.right,
-                    currentBounds.bottom
+                    currentBounds.bottom,
                 )
             }
         }
@@ -1199,7 +1198,7 @@ constructor(
                     mediaCarouselController.onDesiredLocationChanged(
                         newLocation,
                         getHost(newLocation),
-                        animate = false
+                        animate = false,
                     )
                 }
             }
@@ -1214,7 +1213,7 @@ constructor(
         if (isCrossFadeAnimatorRunning) {
             // When animating between two hosts with a fade, let's keep ourselves in the old
             // location for the first half, and then switch over to the end location
-            if (animationCrossFadeProgress > 0.5 || previousLocation == -1) {
+            if (animationCrossFadeProgress > 0.5 || previousLocation == LOCATION_UNKNOWN) {
                 return crossFadeAnimationEndLocation
             } else {
                 return crossFadeAnimationStartLocation
@@ -1377,6 +1376,9 @@ constructor(
         /** Attached at the root of the hierarchy in an overlay */
         const val IN_OVERLAY = -1000
 
+        /** Not attached to any view */
+        const val LOCATION_UNKNOWN = -1
+
         /**
          * The default transformation type where the hosts transform into each other using a direct
          * transition
@@ -1401,8 +1403,8 @@ private val EMPTY_RECT = Rect()
     value =
         [
             MediaHierarchyManager.TRANSFORMATION_TYPE_TRANSITION,
-            MediaHierarchyManager.TRANSFORMATION_TYPE_FADE
-        ]
+            MediaHierarchyManager.TRANSFORMATION_TYPE_FADE,
+        ],
 )
 @Retention(AnnotationRetention.SOURCE)
 private annotation class TransformationType
@@ -1416,7 +1418,8 @@ private annotation class TransformationType
             MediaHierarchyManager.LOCATION_LOCKSCREEN,
             MediaHierarchyManager.LOCATION_DREAM_OVERLAY,
             MediaHierarchyManager.LOCATION_COMMUNAL_HUB,
-        ]
+            MediaHierarchyManager.LOCATION_UNKNOWN,
+        ],
 )
 @Retention(AnnotationRetention.SOURCE)
 annotation class MediaLocation

@@ -19,6 +19,8 @@
     android:id="@+id/volume_dialog_root"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
+    android:layout_marginLeft="@dimen/volume_dialog_panel_transparent_padding_horizontal"
+    android:layout_marginRight="@dimen/volume_dialog_panel_transparent_padding_horizontal"
     app:layoutDescription="@xml/volume_dialog_scene">
 
     <View

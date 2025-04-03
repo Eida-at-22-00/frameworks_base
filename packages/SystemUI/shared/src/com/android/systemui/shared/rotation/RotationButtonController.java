@@ -34,12 +34,15 @@ import android.content.ContentResolver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
+import android.database.ContentObserver;
 import android.graphics.drawable.AnimatedVectorDrawable;
 import android.graphics.drawable.Drawable;
+import android.net.Uri;
 import android.os.Handler;
 import android.os.Looper;
 import android.os.RemoteException;
 import android.os.SystemProperties;
+import android.os.UserHandle;
 import android.provider.Settings;
 import android.util.Log;
 import android.view.HapticFeedbackConstants;
@@ -157,6 +160,35 @@ public class RotationButtonController {
         }
     };
 
+    private CustomSettingsObserver mCustomSettingsObserver = new CustomSettingsObserver();
+    private class CustomSettingsObserver extends ContentObserver {
+        CustomSettingsObserver() {
+            super(new Handler(Looper.getMainLooper()));
+        }
+
+        void observe() {
+            mContext.getContentResolver().registerContentObserver(Settings.System.getUriFor(
+                    Settings.System.ENABLE_FLOATING_ROTATION_BUTTON),
+                    false, this, UserHandle.USER_CURRENT);
+        }
+
+        void stop() {
+            mContext.getContentResolver().unregisterContentObserver(this);
+        }
+
+        @Override
+        public void onChange(boolean selfChange, Uri uri) {
+            update();
+        }
+
+        void update() {
+            boolean enabled = Settings.System.getInt(mContext.getContentResolver(),
+                    Settings.System.ENABLE_FLOATING_ROTATION_BUTTON, 1) == 1;
+            if (mRotationButton == null) return;
+            mContext.getMainExecutor().execute(() -> mRotationButton.setCanShowRotationButton(enabled));
+        }
+    }
+
     /**
      * Determines if rotation suggestions disabled2 flag exists in flag
      *
@@ -254,6 +286,9 @@ public class RotationButtonController {
             final Intent intent = mContext.registerReceiver(mDockedReceiver,
                     new IntentFilter(Intent.ACTION_DOCK_EVENT));
             mContext.getMainExecutor().execute(() -> updateDockedState(intent));
+
+            mCustomSettingsObserver.observe();
+            mCustomSettingsObserver.update();
         });
 
         TaskStackChangeListeners.getInstance().registerTaskStackListener(mTaskStackListener);
@@ -281,6 +316,8 @@ public class RotationButtonController {
                     Log.e(TAG, "UnregisterListeners caught a RemoteException", e);
                 }
             }
+
+            mCustomSettingsObserver.stop();
         });
 
         TaskStackChangeListeners.getInstance().unregisterTaskStackListener(mTaskStackListener);

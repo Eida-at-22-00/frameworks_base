@@ -203,6 +203,7 @@ internal constructor(
                 val savedScreenshot =
                     ScreenshotSavedResult(result.uri, screenshot.userHandle, result.timestamp)
                 actionsController.setCompletedScreenshot(requestId, savedScreenshot)
+                notificationController.showPostActionNotification(result.uri, currentBitmap)
             }
         }
 

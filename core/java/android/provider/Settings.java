@@ -6829,10 +6829,14 @@ public final class Settings {
 
         /**
          * Which navigation bar layout to use
+         * 0 = Normal (Default)
+         * 1 = Compact
+         * 2 = Left-leaning
+         * 3 = Right-leaning
          * @hide
          */
         @Readable
-        public static final String NAVBAR_LAYOUT_VIEWS = "navbar_layout_views";
+        public static final String NAVBAR_LAYOUT_MODE = "navbar_layout_mode";
 
         /**
          * Volume keys control cursor in text fields (default is 0)

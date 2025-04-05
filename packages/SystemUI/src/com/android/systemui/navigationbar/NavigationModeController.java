@@ -68,7 +68,6 @@ public class NavigationModeController implements Dumpable {
     public interface ModeChangedListener {
         void onNavigationModeChanged(int mode);
         default void onNavBarLayoutInverseChanged(boolean inverse) {}
-        default void onNavBarCustomLayoutChanged(String layout) {}
         default void onNavigationHeightChanged() {}
     }
 
@@ -153,16 +152,6 @@ public class NavigationModeController implements Dumpable {
                 }
             }, UserHandle.USER_ALL);
         mSystemSettings.registerContentObserverForUserSync(
-            Settings.System.NAVBAR_LAYOUT_VIEWS,
-            new ContentObserver(mainHandler) {
-                @Override
-                public void onChange(boolean selfChange) {
-                    mListeners.forEach(listener ->
-                        listener.onNavBarCustomLayoutChanged(
-                            getCustomNavbarLayout()));
-                }
-            }, UserHandle.USER_ALL);
-        mSystemSettings.registerContentObserverForUserSync(
             Settings.System.BACK_GESTURE_HEIGHT,
             new ContentObserver(mainHandler) {
                 @Override
@@ -236,11 +225,6 @@ public class NavigationModeController implements Dumpable {
             Log.e(TAG, "Failed to create package context", e);
             return null;
         }
-    }
-
-    public String getCustomNavbarLayout() {
-        return mSystemSettings.getStringForUser(
-                Settings.System.NAVBAR_LAYOUT_VIEWS, UserHandle.USER_CURRENT);
     }
 
     public boolean shouldInvertNavBarLayout() {

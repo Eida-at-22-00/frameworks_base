@@ -165,7 +165,7 @@ public class SystemSettings {
                 Settings.System.QS_SHOW_BATTERY_ESTIMATE,
                 Settings.System.ENABLE_FLOATING_ROTATION_BUTTON,
                 Settings.System.NAVIGATION_BAR_INVERSE,
-                Settings.System.NAVBAR_LAYOUT_VIEWS,
+                Settings.System.NAVBAR_LAYOUT_MODE,
                 Settings.System.VOLUME_KEY_CURSOR_CONTROL,
                 Settings.System.STATUS_BAR_BATTERY_STYLE,
                 Settings.System.SHOW_BATTERY_PERCENT_INSIDE,

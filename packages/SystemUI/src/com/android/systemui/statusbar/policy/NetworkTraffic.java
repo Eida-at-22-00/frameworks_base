@@ -88,6 +88,7 @@ public class NetworkTraffic extends TextView {
     private int mTrafficType;
     private int mAutoHideThreshold;
     private int mFontSize;
+    private boolean mTextEnabled;
     private boolean mShowArrow;
     private boolean mAttached;
     private boolean mIsConnected;
@@ -174,12 +175,14 @@ public class NetworkTraffic extends TextView {
                         break;
                 }
                 // Update view if there's anything new to show
-                final String out = output;
+                final String out = mTextEnabled ? output : "";
                 getHandler().post(() -> {
                     if (!out.contentEquals(getText()))
                         setText(out);
-                    setVisibility(!out.isEmpty() && sizeCheck() && !mIsObscured
-                            ? View.VISIBLE : View.INVISIBLE);
+                    final boolean isTextOnly = !mTextEnabled && mShowArrow;
+                    final boolean isValidOut = !out.isEmpty() && sizeCheck();
+                    final boolean visible = (isTextOnly || isValidOut) && !mIsObscured;
+                    setVisibility(visible ? View.VISIBLE : View.INVISIBLE);
                 });
             }
             getHandler().post(NetworkTraffic.this::updateTrafficDrawable);
@@ -300,6 +303,9 @@ public class NetworkTraffic extends TextView {
             resolver.registerContentObserver(Settings.System
                     .getUriFor(Settings.System.NETWORK_TRAFFIC_FONT_SIZE), false,
                     this, UserHandle.USER_ALL);
+            resolver.registerContentObserver(Settings.System
+                    .getUriFor(Settings.System.NETWORK_TRAFFIC_TEXT_ENABLED), false,
+                    this, UserHandle.USER_ALL);
         }
 
         void stop() {
@@ -397,6 +403,9 @@ public class NetworkTraffic extends TextView {
         mFontSize = Settings.System.getIntForUser(getContext().getContentResolver(),
                 Settings.System.NETWORK_TRAFFIC_FONT_SIZE, 10,
                 UserHandle.USER_CURRENT);
+        mTextEnabled = Settings.System.getIntForUser(getContext().getContentResolver(),
+                Settings.System.NETWORK_TRAFFIC_TEXT_ENABLED, 1,
+                UserHandle.USER_CURRENT) == 1;
     }
 
     private void updateTrafficDrawable() {

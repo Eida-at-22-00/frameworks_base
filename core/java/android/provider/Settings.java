@@ -6560,6 +6560,14 @@ public final class Settings {
         public static final String NETWORK_TRAFFIC_FONT_SIZE = "network_traffic_font_size";
 
         /**
+         * Whether to show network traffic text or drawable only
+         * when {@link NETWORK_TRAFFIC_ARROW} is disabled this setting is ignored
+         * @hide
+         */
+        @Readable
+        public static final String NETWORK_TRAFFIC_TEXT_ENABLED = "network_traffic_text_enabled";
+
+        /**
          * Show network traffic indicator
          * 0 - Statusbar (default)
          * 1 - QS Header
@@ -7331,6 +7339,7 @@ public final class Settings {
             PRIVATE_SETTINGS.add(NETWORK_TRAFFIC_AUTOHIDE_THRESHOLD);
             PRIVATE_SETTINGS.add(NETWORK_TRAFFIC_ARROW);
             PRIVATE_SETTINGS.add(NETWORK_TRAFFIC_FONT_SIZE);
+            PRIVATE_SETTINGS.add(NETWORK_TRAFFIC_TEXT_ENABLED);
             PRIVATE_SETTINGS.add(NETWORK_TRAFFIC_VIEW_LOCATION);
             PRIVATE_SETTINGS.add(VIBRATE_ON_CONNECT);
             PRIVATE_SETTINGS.add(VIBRATE_ON_CALLWAITING);

@@ -130,6 +130,7 @@ public class SystemSettings {
                 Settings.System.NETWORK_TRAFFIC_AUTOHIDE_THRESHOLD,
                 Settings.System.NETWORK_TRAFFIC_ARROW,
                 Settings.System.NETWORK_TRAFFIC_FONT_SIZE,
+                Settings.System.NETWORK_TRAFFIC_TEXT_ENABLED,
                 Settings.System.NETWORK_TRAFFIC_VIEW_LOCATION,
                 Settings.System.GAMING_MODE_HEADS_UP,
                 Settings.System.GAMING_MODE_ZEN,

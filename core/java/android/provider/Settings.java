@@ -13845,10 +13845,16 @@ public final class Settings {
         public static final String TOUCH_SENSITIVITY_ENABLED = "touch_sensitivity_enabled";
 
         /**
-         * Whether to increase touch sensitivity
+         * Whether to enable screen off udfps
          * @hide
          */
         public static final String SCREEN_OFF_UDFPS_ENABLED = "screen_off_udfps_enabled";
+
+        /**
+         * Haptic effects profile to be used
+         * @hide
+         */
+        public static final String HAPTIC_EFFECTS_PROFILE = "haptic_effects_profile";
 
         /**
          * Whether to show ambient instead of waking for the dt2w gesture

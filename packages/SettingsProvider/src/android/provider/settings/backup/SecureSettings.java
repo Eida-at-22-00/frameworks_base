@@ -308,6 +308,7 @@ public class SecureSettings {
         Settings.Secure.MEDIA_CONTROLS_SQUIGGLE,
         Settings.Secure.MEDIA_CONTROLS_ACTIONS,
         Settings.Secure.TOUCH_SENSITIVITY_ENABLED,
+        Settings.Secure.HIGH_TOUCH_RATE_ENABLED,
         Settings.Secure.SCREEN_OFF_UDFPS_ENABLED,
         Settings.Secure.HAPTIC_EFFECTS_PROFILE,
         Settings.Secure.DOZE_DOUBLE_TAP_GESTURE_AMBIENT,

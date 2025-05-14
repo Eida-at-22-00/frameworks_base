@@ -13845,6 +13845,12 @@ public final class Settings {
         public static final String TOUCH_SENSITIVITY_ENABLED = "touch_sensitivity_enabled";
 
         /**
+         * Whether to increase touch polling rate
+         * @hide
+         */
+        public static final String HIGH_TOUCH_RATE_ENABLED = "high_touch_rate_enabled";
+
+        /**
          * Whether to enable screen off udfps
          * @hide
          */

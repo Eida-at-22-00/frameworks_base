@@ -6718,6 +6718,13 @@ public final class Settings {
         public static final String GAMING_MODE_TOUCH_SENSITIVITY = "gaming_mode_touch_sensitivity";
 
         /**
+         * Whether gaming mode toggles high touch polling rate
+         * @hide
+         */
+        @Readable
+        public static final String GAMING_MODE_HIGH_TOUCH_RATE = "gaming_mode_high_touch_rate";
+
+        /**
          * Apps gaming macro should automatically activate for
          * package name list delimeted by comma
          * @hide

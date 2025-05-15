@@ -75,6 +75,7 @@ public class GamingMacro {
     private static final String KEY_BLUETOOTH = "gaming_mode_bluetooth";
     private static final String KEY_THREE_FINGER = "gaming_mode_three_finger";
     private static final String KEY_TOUCH_SENSITIVITY = "gaming_mode_touch_sensitivity";
+    private static final String KEY_HIGH_TOUCH_RATE = "gaming_mode_high_touch_rate";
     private static final String KEY_EXTRA_DIM = "gaming_mode_extra_dim";
     private static final String KEY_EXTRA_DIM_SCHEDULE = "gaming_mode_extra_dim_schedule";
     private static final String KEY_BRIGHTNESS_STATE = "gaming_mode_state_brightness";
@@ -112,6 +113,7 @@ public class GamingMacro {
     private boolean mBluetoothEnabled;
     private boolean mThreeFingerEnabled;
     private boolean mTouchSensitivityEnabled;
+    private boolean mHighTouchRateEnabled;
     private boolean mExtraDimEnabled;
     private boolean mBrightnessEnabled;
     private boolean mMediaEnabled;
@@ -241,6 +243,12 @@ public class GamingMacro {
                 SystemProperties.set("debug.touch_sensitivity_mode", "1");
             }
 
+            if (mHighTouchRateEnabled) {
+                Settings.Secure.putInt(mResolver,
+                        Settings.Secure.HIGH_TOUCH_RATE_ENABLED, 1);
+                SystemProperties.set("debug.high_touch_rate", "1");
+            }
+
             if (mExtraDimEnabled) {
                 mColorManager.setReduceBrightColorsActivated(false);
                 Settings.Secure.putInt(mResolver,
@@ -322,6 +330,8 @@ public class GamingMacro {
                 Settings.System.GAMING_MODE_THREE_FINGER, 0) == 1;
         mTouchSensitivityEnabled = Settings.System.getInt(mResolver,
                 Settings.System.GAMING_MODE_TOUCH_SENSITIVITY, 0) == 1;
+        mHighTouchRateEnabled = Settings.System.getInt(mResolver,
+                Settings.System.GAMING_MODE_HIGH_TOUCH_RATE, 0) == 1;
         mExtraDimEnabled = Settings.System.getInt(mResolver,
                 Settings.System.GAMING_MODE_EXTRA_DIM, 0) == 1;
         mBrightnessEnabled = Settings.System.getInt(mResolver,
@@ -396,6 +406,11 @@ public class GamingMacro {
         if (mTouchSensitivityEnabled) {
             editor.putInt(KEY_TOUCH_SENSITIVITY, Settings.Secure.getInt(mResolver,
                     Settings.Secure.TOUCH_SENSITIVITY_ENABLED, 0));
+        }
+
+        if (mHighTouchRateEnabled) {
+            editor.putInt(KEY_HIGH_TOUCH_RATE, Settings.Secure.getInt(mResolver,
+                    Settings.Secure.HIGH_TOUCH_RATE_ENABLED, 0));
         }
 
         if (mExtraDimEnabled) {
@@ -500,6 +515,13 @@ public class GamingMacro {
             Settings.Secure.putInt(mResolver,
                     Settings.Secure.TOUCH_SENSITIVITY_ENABLED, prevMode);
             SystemProperties.set("debug.touch_sensitivity_mode", String.valueOf(prevMode));
+        }
+
+        if (mPrefs.contains(KEY_HIGH_TOUCH_RATE)) {
+            final int prevMode = mPrefs.getInt(KEY_HIGH_TOUCH_RATE, 0);
+            Settings.Secure.putInt(mResolver,
+                    Settings.Secure.HIGH_TOUCH_RATE_ENABLED, prevMode);
+            SystemProperties.set("debug.high_touch_rate", String.valueOf(prevMode));
         }
 
         if (mPrefs.contains(KEY_EXTRA_DIM)) {

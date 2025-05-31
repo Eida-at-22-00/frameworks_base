@@ -48,7 +48,7 @@ import android.system.keystore2.ResponseCode;
 import android.util.Log;
 
 import com.android.internal.annotations.VisibleForTesting;
-import com.android.internal.util.KeyProviderManager;
+import com.android.internal.util.yaap.KeyProviderManager;
 import com.android.internal.util.yaap.PixelPropsUtils;
 
 import java.io.ByteArrayInputStream;
@@ -195,7 +195,7 @@ public class AndroidKeyStoreSpi extends KeyStoreSpi {
 
     @Override
     public Certificate[] engineGetCertificateChain(String alias) {
-        if (PixelPropsUtils.getIsEnabled() && !KeyProviderManager.isKeyboxAvailable()) {
+        if (PixelPropsUtils.getIsEnabled()) {
             if (PixelPropsUtils.getIsFinsky()) {
                 throw new UnsupportedOperationException("Blocking safetynet attestation for finsky");
             }

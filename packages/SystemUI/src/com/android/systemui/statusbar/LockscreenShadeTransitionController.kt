@@ -24,7 +24,6 @@ import com.android.systemui.dump.DumpManager
 import com.android.systemui.keyguard.WakefulnessLifecycle
 import com.android.systemui.keyguard.domain.interactor.NaturalScrollingSettingObserver
 import com.android.systemui.media.controls.ui.controller.MediaHierarchyManager
-import com.android.systemui.navigationbar.gestural.Utilities.isTrackpadScroll
 import com.android.systemui.plugins.ActivityStarter
 import com.android.systemui.plugins.ActivityStarter.OnDismissAction
 import com.android.systemui.plugins.FalsingManager
@@ -32,12 +31,14 @@ import com.android.systemui.plugins.qs.QS
 import com.android.systemui.plugins.statusbar.StatusBarStateController
 import com.android.systemui.qs.ui.adapter.QSSceneAdapter
 import com.android.systemui.res.R
+import com.android.systemui.shade.ShadeDisplayAware
 import com.android.systemui.shade.data.repository.ShadeRepository
 import com.android.systemui.shade.domain.interactor.ShadeInteractor
 import com.android.systemui.shade.domain.interactor.ShadeLockscreenInteractor
 import com.android.systemui.statusbar.notification.collection.NotificationEntry
 import com.android.systemui.statusbar.notification.row.ExpandableNotificationRow
 import com.android.systemui.statusbar.notification.row.ExpandableView
+import com.android.systemui.statusbar.notification.shared.NotificationBundleUi
 import com.android.systemui.statusbar.notification.stack.AmbientState
 import com.android.systemui.statusbar.notification.stack.NotificationStackScrollLayoutController
 import com.android.systemui.statusbar.phone.CentralSurfaces
@@ -70,12 +71,12 @@ constructor(
     private val keyguardTransitionControllerFactory:
         LockscreenShadeKeyguardTransitionController.Factory,
     private val depthController: NotificationShadeDepthController,
-    private val context: Context,
+    @ShadeDisplayAware private val context: Context,
     private val splitShadeOverScrollerFactory: SplitShadeLockScreenOverScroller.Factory,
     private val singleShadeOverScrollerFactory: SingleShadeLockScreenOverScroller.Factory,
     private val activityStarter: ActivityStarter,
     wakefulnessLifecycle: WakefulnessLifecycle,
-    configurationController: ConfigurationController,
+    @ShadeDisplayAware configurationController: ConfigurationController,
     falsingManager: FalsingManager,
     dumpManager: DumpManager,
     qsTransitionControllerFactory: LockscreenShadeQsTransitionController.Factory,
@@ -393,7 +394,9 @@ constructor(
             }
             if (view is ExpandableNotificationRow) {
                 // Only drag down on sensitive views, otherwise the ExpandHelper will take this
-                return view.entry.isSensitive.value
+                return if (NotificationBundleUi.isEnabled)
+                    view.entryAdapter?.isSensitive?.value == true
+                else view.entryLegacy.isSensitive.value
             }
         }
         return false
@@ -561,12 +564,15 @@ constructor(
         var userId: Int = lockScreenUserManager.getCurrentUserId()
         var entry: NotificationEntry? = null
         if (expandView is ExpandableNotificationRow) {
-            entry = expandView.entry
-            entry.setUserExpanded(/* userExpanded= */ true, /* allowChildExpansion= */ true)
+            expandView.setUserExpanded(/* userExpanded= */ true, /* allowChildExpansion= */ true)
             // Indicate that the group expansion is changing at this time -- this way the group
             // and children backgrounds / divider animations will look correct.
-            entry.setGroupExpansionChanging(true)
-            userId = entry.sbn.userId
+            expandView.isGroupExpansionChanging = true
+            if (NotificationBundleUi.isEnabled) {
+                userId = expandView.entryAdapter?.sbn?.userId!!
+            } else {
+                userId = expandView.entryLegacy.sbn.userId
+            }
         }
         var fullShadeNeedsBouncer =
             (!lockScreenUserManager.shouldShowLockscreenNotifications() ||
@@ -762,7 +768,6 @@ class DragDownHelper(
     private var draggedFarEnough = false
     private var startingChild: ExpandableView? = null
     private var lastHeight = 0f
-    private var isTrackpadReverseScroll = false
 
     private var doubleTapToSleepEnabled = false
     private var statusBarHeaderHeight = 0
@@ -824,12 +829,10 @@ class DragDownHelper(
                         lastDownEvent = eventTime
                     }
                 }
-                isTrackpadReverseScroll =
-                    !naturalScrollingSettingObserver.isNaturalScrollingEnabled &&
-                        isTrackpadScroll(event)
             }
+
             MotionEvent.ACTION_MOVE -> {
-                val h = (if (isTrackpadReverseScroll) -1 else 1) * (y - initialTouchY)
+                val h = y - initialTouchY
                 // Adjust the touch slop if another gesture may be being performed.
                 val touchSlop =
                     if (event.classification == MotionEvent.CLASSIFICATION_AMBIGUOUS_GESTURE) {
@@ -863,7 +866,7 @@ class DragDownHelper(
         val y = event.y
         when (event.actionMasked) {
             MotionEvent.ACTION_MOVE -> {
-                lastHeight = (if (isTrackpadReverseScroll) -1 else 1) * (y - initialTouchY)
+                lastHeight = y - initialTouchY
                 captureStartingChild(initialTouchX, initialTouchY)
                 dragDownCallback.dragDownAmount = lastHeight + dragDownAmountOnStart
                 if (startingChild != null) {
@@ -882,26 +885,27 @@ class DragDownHelper(
                 }
                 return true
             }
+
             MotionEvent.ACTION_UP ->
                 if (
                     !falsingManager.isUnlockingDisabled &&
                         !isFalseTouch &&
                         dragDownCallback.canDragDown()
                 ) {
-                    val dragDown = (if (isTrackpadReverseScroll) -1 else 1) * (y - initialTouchY)
+                    val dragDown = y - initialTouchY
                     dragDownCallback.onDraggedDown(startingChild, dragDown.toInt())
                     if (startingChild != null) {
                         expandCallback.setUserLockedChild(startingChild, false)
                         startingChild = null
                     }
                     isDraggingDown = false
-                    isTrackpadReverseScroll = false
                     shadeRepository.setLegacyLockscreenShadeTracking(false)
                     return true
                 } else {
                     stopDragging()
                     return false
                 }
+
             MotionEvent.ACTION_CANCEL -> {
                 stopDragging()
                 return false
@@ -941,7 +945,7 @@ class DragDownHelper(
             overshoot *= 1 - RUBBERBAND_FACTOR_STATIC
             rubberband -= overshoot
         }
-        child.actualHeight = (child.collapsedHeight + rubberband).toInt()
+        child.setFinalActualHeight((child.collapsedHeight + rubberband).toInt())
     }
 
     @VisibleForTesting
@@ -958,7 +962,7 @@ class DragDownHelper(
         anim.duration = animationDuration
         anim.addUpdateListener { animation: ValueAnimator ->
             // don't use reflection, because the `actualHeight` field may be obfuscated
-            child.actualHeight = animation.animatedValue as Int
+            child.setFinalActualHeight(animation.animatedValue as Int)
         }
         anim.addListener(
             object : AnimatorListenerAdapter() {
@@ -976,7 +980,6 @@ class DragDownHelper(
             startingChild = null
         }
         isDraggingDown = false
-        isTrackpadReverseScroll = false
         shadeRepository.setLegacyLockscreenShadeTracking(false)
         dragDownCallback.onDragDownReset()
     }

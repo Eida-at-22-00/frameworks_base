@@ -39,7 +39,7 @@ public class GlobalActionsPowerDialog {
     /**
      * Create a dialog for displaying Shut Down and Restart actions.
      */
-    public static Dialog create(@NonNull Context context, ListAdapter adapter) {
+    public static Dialog create(@NonNull Context context, ListAdapter adapter, BlurUtils blurUtils) {
         ViewGroup listView = (ViewGroup) LayoutInflater.from(context).inflate(
                 com.android.systemui.res.R.layout.global_actions_power_dialog, null);
 
@@ -54,9 +54,6 @@ public class GlobalActionsPowerDialog {
                 com.android.systemui.res.R.style.Theme_SystemUI_Dialog_GlobalActionsLite);
         dialog.requestWindowFeature(Window.FEATURE_NO_TITLE);
         dialog.setContentView(listView);
-
-        BlurUtils blurUtils = new BlurUtils(context.getResources(),
-                CrossWindowBlurListeners.getInstance(), new DumpManager());
 
         Window window = dialog.getWindow();
         window.setType(WindowManager.LayoutParams.TYPE_VOLUME_OVERLAY);

@@ -16,4 +16,4 @@
 <inset xmlns:android="http://schemas.android.com/apk/res/android"
     android:insetLeft="0dp"
     android:insetRight="0dp"
-    android:drawable="@drawable/ic_volume_ringer_vibrate" />
+    android:drawable="@drawable/ic_legacy_volume_ringer_vibrate" />

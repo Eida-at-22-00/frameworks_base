@@ -163,6 +163,7 @@ class AuthRippleView(context: Context?, attrs: AttributeSet?) : View(context, at
                     override fun onAnimationEnd(animation: Animator) {
                         drawDwell = false
                         resetDwellAlpha()
+                        invalidate()
                     }
                 })
                 start()
@@ -199,6 +200,7 @@ class AuthRippleView(context: Context?, attrs: AttributeSet?) : View(context, at
                     override fun onAnimationEnd(animation: Animator) {
                         drawDwell = false
                         resetDwellAlpha()
+                        invalidate()
                     }
                 })
                 start()
@@ -256,6 +258,7 @@ class AuthRippleView(context: Context?, attrs: AttributeSet?) : View(context, at
 
                 override fun onAnimationEnd(animation: Animator) {
                     drawDwell = false
+                    invalidate()
                 }
             })
             start()

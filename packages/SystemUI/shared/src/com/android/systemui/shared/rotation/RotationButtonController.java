@@ -42,7 +42,6 @@ import android.os.Handler;
 import android.os.Looper;
 import android.os.RemoteException;
 import android.os.SystemProperties;
-import android.os.UserHandle;
 import android.provider.Settings;
 import android.util.Log;
 import android.view.HapticFeedbackConstants;
@@ -168,8 +167,7 @@ public class RotationButtonController {
 
         void observe() {
             mContext.getContentResolver().registerContentObserver(Settings.System.getUriFor(
-                    Settings.System.ENABLE_FLOATING_ROTATION_BUTTON),
-                    false, this, UserHandle.USER_CURRENT);
+                    Settings.System.ENABLE_FLOATING_ROTATION_BUTTON), false, this);
         }
 
         void stop() {

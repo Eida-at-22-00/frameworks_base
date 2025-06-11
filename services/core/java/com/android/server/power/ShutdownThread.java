@@ -59,9 +59,8 @@ import android.view.SurfaceControl;
 import android.view.WindowManager;
 
 import com.android.internal.annotations.VisibleForTesting;
-import com.android.server.crashrecovery.CrashRecoveryHelper;
+import com.android.server.PackageWatchdog;
 import com.android.server.LocalServices;
-import com.android.server.RescueParty;
 import com.android.server.statusbar.StatusBarManagerInternal;
 
 import java.io.File;
@@ -359,7 +358,7 @@ public final class ShutdownThread extends Thread {
                             com.android.internal.R.string.reboot_to_update_reboot));
             }
         } else if (mReason != null && mReason.equals(PowerManager.REBOOT_RECOVERY)) {
-            if (CrashRecoveryHelper.isRecoveryTriggeredReboot()) {
+            if (PackageWatchdog.isRecoveryTriggeredReboot()) {
                 // We're not actually doing a factory reset yet; we're rebooting
                 // to ask the user if they'd like to reset, so give them a less
                 // scary dialog message.
@@ -369,20 +368,11 @@ public final class ShutdownThread extends Thread {
             } else if (showSysuiReboot()) {
                 return null;
             } else if (!mRebootCustom) {
-                if (RescueParty.isFactoryResetPropertySet()) {
-                    // We're not actually doing a factory reset yet; we're rebooting
-                    // to ask the user if they'd like to reset, so give them a less
-                    // scary dialog message.
-                    pd.setTitle(context.getText(com.android.internal.R.string.power_off));
-                    pd.setMessage(context.getText(com.android.internal.R.string.shutdown_progress));
-                    pd.setIndeterminate(true);
-                } else {
-                    // Factory reset path. Set the dialog message accordingly.
-                    pd.setTitle(context.getText(com.android.internal.R.string.reboot_to_reset_title));
-                    pd.setMessage(context.getText(
-                        com.android.internal.R.string.reboot_to_reset_message));
-                    pd.setIndeterminate(true);
-                }
+                // Factory reset path. Set the dialog message accordingly.
+                pd.setTitle(context.getText(com.android.internal.R.string.reboot_to_reset_title));
+                pd.setMessage(context.getText(
+                            com.android.internal.R.string.reboot_to_reset_message));
+                pd.setIndeterminate(true);
             } else if (mReason != null && PowerManager.REBOOT_BOOTLOADER.equals(mReason) && mRebootCustom) {
                 if (showSysuiReboot()) {
                     return null;

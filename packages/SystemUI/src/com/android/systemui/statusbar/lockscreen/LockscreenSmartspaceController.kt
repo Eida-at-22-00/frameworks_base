@@ -62,6 +62,7 @@ import com.android.systemui.plugins.clocks.WeatherData
 import com.android.systemui.plugins.statusbar.StatusBarStateController
 import com.android.systemui.res.R
 import com.android.systemui.settings.UserTracker
+import com.android.systemui.shade.ShadeDisplayAware
 import com.android.systemui.shared.regionsampling.RegionSampler
 import com.android.systemui.smartspace.dagger.SmartspaceModule.Companion.DATE_SMARTSPACE_DATA_PLUGIN
 import com.android.systemui.smartspace.dagger.SmartspaceModule.Companion.WEATHER_SMARTSPACE_DATA_PLUGIN
@@ -90,7 +91,7 @@ import javax.inject.Named
 class LockscreenSmartspaceController
 @Inject
 constructor(
-    private val context: Context,
+    @ShadeDisplayAware private val context: Context,
     private val featureFlags: FeatureFlags,
     private val activityStarter: ActivityStarter,
     private val falsingManager: FalsingManager,
@@ -99,7 +100,7 @@ constructor(
     private val systemSettings: SystemSettings,
     private val userTracker: UserTracker,
     private val contentResolver: ContentResolver,
-    private val configurationController: ConfigurationController,
+    @ShadeDisplayAware private val configurationController: ConfigurationController,
     private val statusBarStateController: StatusBarStateController,
     private val deviceProvisionedController: DeviceProvisionedController,
     private val bypassController: KeyguardBypassController,
@@ -334,7 +335,7 @@ constructor(
     }
 
     /** Constructs the date view and connects it to the smartspace service. */
-    fun buildAndConnectDateView(parent: ViewGroup): View? {
+    fun buildAndConnectDateView(parent: ViewGroup, isLargeClock: Boolean): View? {
         execution.assertIsMainThread()
 
         if (!isEnabled || !isDateWeatherDecoupled) {
@@ -346,6 +347,7 @@ constructor(
                 surfaceName = SmartspaceViewModel.SURFACE_DATE_VIEW,
                 parent = parent,
                 plugin = datePlugin,
+                isLargeClock = isLargeClock
             )
         connectSession()
 
@@ -353,7 +355,7 @@ constructor(
     }
 
     /** Constructs the weather view and connects it to the smartspace service. */
-    fun buildAndConnectWeatherView(parent: ViewGroup): View? {
+    fun buildAndConnectWeatherView(parent: ViewGroup, isLargeClock: Boolean): View? {
         execution.assertIsMainThread()
 
         if (!isEnabled || !isDateWeatherDecoupled) {
@@ -365,6 +367,7 @@ constructor(
                 surfaceName = SmartspaceViewModel.SURFACE_WEATHER_VIEW,
                 parent = parent,
                 plugin = weatherPlugin,
+                isLargeClock = isLargeClock,
             )
         connectSession()
 
@@ -387,6 +390,7 @@ constructor(
                 parent = parent,
                 plugin = plugin,
                 configPlugin = configPlugin,
+                isLargeClock = false,
             )
         connectSession()
 
@@ -398,12 +402,13 @@ constructor(
         parent: ViewGroup,
         plugin: BcSmartspaceDataPlugin?,
         configPlugin: BcSmartspaceConfigPlugin? = null,
+        isLargeClock: Boolean,
     ): View? {
         if (plugin == null) {
             return null
         }
 
-        val ssView = plugin.getView(parent)
+        val ssView = if (isLargeClock) plugin.getLargeClockView(parent) else plugin.getView(parent)
         configPlugin?.let { ssView.registerConfigProvider(it) }
         ssView.setBgHandler(bgHandler)
         ssView.setUiSurface(BcSmartspaceDataPlugin.UI_SURFACE_LOCK_SCREEN_AOD)

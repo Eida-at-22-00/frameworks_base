@@ -145,6 +145,7 @@ public class LegacyScreenshotController implements InteractiveScreenshotHandler 
     private RequestCallback mCurrentRequestCallback;
     private String mPackageName = "";
     private final BroadcastReceiver mCopyBroadcastReceiver;
+    private final ActionIntentCreator mActionIntentCreator;
 
     /** Tracks config changes that require re-creating UI */
     private final InterestingConfigChanges mConfigChanges = new InterestingConfigChanges(
@@ -212,6 +213,7 @@ public class LegacyScreenshotController implements InteractiveScreenshotHandler 
             MessageContainerController messageContainerController,
             Provider<ScreenshotSoundController> screenshotSoundController,
             AnnouncementResolver announcementResolver,
+            ActionIntentCreator actionIntentCreator,
             @Assisted Display display
     ) {
         mScreenshotSmartActions = screenshotSmartActions;
@@ -239,6 +241,7 @@ public class LegacyScreenshotController implements InteractiveScreenshotHandler 
         mMessageContainerController = messageContainerController;
         mAssistContentRequester = assistContentRequester;
         mAnnouncementResolver = announcementResolver;
+        mActionIntentCreator = actionIntentCreator;
 
         mViewProxy = viewProxyFactory.getProxy(mContext, mDisplay.getDisplayId());
 
@@ -557,8 +560,7 @@ public class LegacyScreenshotController implements InteractiveScreenshotHandler 
     private void executeBatchScrollCapture(ScrollCaptureResponse response, UserHandle owner) {
         mScrollCaptureExecutor.executeBatchScrollCapture(response,
                 () -> {
-                    final Intent intent = ActionIntentCreator.INSTANCE.createLongScreenshotIntent(
-                            owner, mContext);
+                    final Intent intent = mActionIntentCreator.createLongScreenshotIntent(owner);
                     mContext.startActivity(intent);
                 },
                 mViewProxy::restoreNonScrollingUi,

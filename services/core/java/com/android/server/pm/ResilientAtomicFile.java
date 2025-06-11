@@ -23,6 +23,7 @@ import android.os.ParcelFileDescriptor;
 import android.util.Log;
 import android.util.Slog;
 
+import com.android.internal.annotations.VisibleForTesting;
 import com.android.server.security.FileIntegrity;
 
 import libcore.io.IoUtils;
@@ -121,6 +122,11 @@ final class ResilientAtomicFile implements Closeable {
     }
 
     public void finishWrite(FileOutputStream str) throws IOException {
+        finishWrite(str, true /* doFsVerity */);
+    }
+
+    @VisibleForTesting
+    public void finishWrite(FileOutputStream str, final boolean doFsVerity) throws IOException {
         if (mMainOutStream != str) {
             throw new IllegalStateException("Invalid incoming stream.");
         }
@@ -145,7 +151,7 @@ final class ResilientAtomicFile implements Closeable {
                 finalizeOutStream(reserveOutStream);
             }
 
-            if (PackageManagerServiceUtils.isApkVerityEnabled()) {
+            if (doFsVerity) {
                 // Protect both main and reserve using fs-verity.
                 try (ParcelFileDescriptor mainPfd = ParcelFileDescriptor.dup(mainInStream.getFD());
                      ParcelFileDescriptor copyPfd = ParcelFileDescriptor.dup(reserveInStream.getFD())) {

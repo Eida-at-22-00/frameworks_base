@@ -37,12 +37,14 @@ import static android.hardware.biometrics.BiometricSourceType.FINGERPRINT;
 import static android.os.BatteryManager.BATTERY_STATUS_UNKNOWN;
 import static android.os.BatteryManager.CHARGING_POLICY_DEFAULT;
 import static android.telephony.SubscriptionManager.PROFILE_CLASS_PROVISIONING;
+import static android.telephony.SubscriptionManager.SUBSCRIPTION_TYPE_REMOTE_SIM;
 
 import static com.android.internal.widget.LockPatternUtils.StrongAuthTracker.SOME_AUTH_REQUIRED_AFTER_ADAPTIVE_AUTH_REQUEST;
 import static com.android.internal.widget.LockPatternUtils.StrongAuthTracker.STRONG_AUTH_REQUIRED_AFTER_BOOT;
 import static com.android.internal.widget.LockPatternUtils.StrongAuthTracker.STRONG_AUTH_REQUIRED_AFTER_DPM_LOCK_NOW;
 import static com.android.internal.widget.LockPatternUtils.StrongAuthTracker.STRONG_AUTH_REQUIRED_AFTER_LOCKOUT;
 import static com.android.internal.widget.LockPatternUtils.StrongAuthTracker.STRONG_AUTH_REQUIRED_AFTER_USER_LOCKDOWN;
+import static com.android.systemui.Flags.glanceableHubV2;
 import static com.android.systemui.Flags.simPinBouncerReset;
 import static com.android.systemui.Flags.simPinUseSlotId;
 import static com.android.systemui.statusbar.policy.DevicePostureController.DEVICE_POSTURE_OPENED;
@@ -124,12 +126,12 @@ import com.android.settingslib.Utils;
 import com.android.settingslib.WirelessUtils;
 import com.android.settingslib.fuelgauge.BatteryStatus;
 import com.android.systemui.CoreStartable;
-import com.android.systemui.Dumpable;
 import com.android.systemui.Flags;
 import com.android.systemui.biometrics.AuthController;
 import com.android.systemui.biometrics.FingerprintInteractiveToAuthProvider;
 import com.android.systemui.bouncer.domain.interactor.AlternateBouncerInteractor;
 import com.android.systemui.broadcast.BroadcastDispatcher;
+import com.android.systemui.communal.domain.interactor.CommunalSceneInteractor;
 import com.android.systemui.dagger.SysUISingleton;
 import com.android.systemui.dagger.qualifiers.Background;
 import com.android.systemui.dagger.qualifiers.Main;
@@ -145,6 +147,9 @@ import com.android.systemui.deviceentry.shared.model.HelpFaceAuthenticationStatu
 import com.android.systemui.deviceentry.shared.model.SuccessFaceAuthenticationStatus;
 import com.android.systemui.dump.DumpManager;
 import com.android.systemui.dump.DumpsysTableLogger;
+import com.android.systemui.keyguard.KeyguardWmStateRefactor;
+import com.android.systemui.keyguard.domain.interactor.KeyguardServiceShowLockscreenInteractor;
+import com.android.systemui.keyguard.domain.interactor.ShowWhileAwakeReason;
 import com.android.systemui.keyguard.shared.constants.TrustAgentUiEvent;
 import com.android.systemui.log.SessionTracker;
 import com.android.systemui.plugins.clocks.WeatherData;
@@ -152,7 +157,7 @@ import com.android.systemui.plugins.statusbar.StatusBarStateController;
 import com.android.systemui.res.R;
 import com.android.systemui.scene.domain.interactor.SceneInteractor;
 import com.android.systemui.scene.shared.flag.SceneContainerFlag;
-import com.android.systemui.scene.shared.model.Scenes;
+import com.android.systemui.scene.shared.model.Overlays;
 import com.android.systemui.settings.UserTracker;
 import com.android.systemui.shade.ShadeDisplayAware;
 import com.android.systemui.shared.system.TaskStackChangeListener;
@@ -195,7 +200,7 @@ import javax.inject.Provider;
  * to be updated.
  */
 @SysUISingleton
-public class KeyguardUpdateMonitor implements TrustManager.TrustListener, Dumpable, CoreStartable {
+public class KeyguardUpdateMonitor implements TrustManager.TrustListener, CoreStartable {
 
     private static final String TAG = "KeyguardUpdateMonitor";
     private static final int BIOMETRIC_LOCKOUT_RESET_DELAY_MS = 600;
@@ -299,6 +304,9 @@ public class KeyguardUpdateMonitor implements TrustManager.TrustListener, Dumpab
     private final Provider<JavaAdapter> mJavaAdapter;
     private final Provider<SceneInteractor> mSceneInteractor;
     private final Provider<AlternateBouncerInteractor> mAlternateBouncerInteractor;
+    private final Provider<CommunalSceneInteractor> mCommunalSceneInteractor;
+    private final Provider<KeyguardServiceShowLockscreenInteractor>
+            mKeyguardServiceShowLockscreenInteractor;
     private final AuthController mAuthController;
     private final UiEventLogger mUiEventLogger;
     private final Set<String> mAllowFingerprintOnOccludingActivitiesFromPackage;
@@ -409,6 +417,7 @@ public class KeyguardUpdateMonitor implements TrustManager.TrustListener, Dumpab
     protected int mFingerprintRunningState = BIOMETRIC_STATE_STOPPED;
     private boolean mFingerprintDetectRunning;
     private boolean mIsDreaming;
+    private boolean mCommunalShowing;
     private int mActiveMobileDataSubscription = SubscriptionManager.INVALID_SUBSCRIPTION_ID;
     private final FingerprintInteractiveToAuthProvider mFingerprintInteractiveToAuthProvider;
 
@@ -442,8 +451,12 @@ public class KeyguardUpdateMonitor implements TrustManager.TrustListener, Dumpab
     private final IBiometricEnabledOnKeyguardCallback mBiometricEnabledCallback =
             new IBiometricEnabledOnKeyguardCallback.Stub() {
                 @Override
-                public void onChanged(boolean enabled, int userId) {
+                public void onChanged(boolean enabled, int userId, int modality) {
                     mHandler.post(() -> {
+                        if (com.android.settings.flags.Flags.biometricsOnboardingEducation()
+                                && modality != TYPE_FINGERPRINT) {
+                            return;
+                        }
                         mBiometricEnabledForUser.put(userId, enabled);
                         updateFingerprintListeningState(BIOMETRIC_ACTION_UPDATE);
                     });
@@ -707,13 +720,16 @@ public class KeyguardUpdateMonitor implements TrustManager.TrustListener, Dumpab
      * @return List of SubscriptionInfo records, maybe empty but never null.
      *
      * Note that this method will filter out any subscription which is PROFILE_CLASS_PROVISIONING
+     * and REMOTE SIMs. REMOTE SIMs use an invalid slot index (-1).
      */
     public List<SubscriptionInfo> getSubscriptionInfo(boolean forceReload) {
         List<SubscriptionInfo> sil = mSubscriptionInfo;
         if (sil == null || forceReload) {
             mSubscriptionInfo = mSubscriptionManager.getCompleteActiveSubscriptionInfoList()
                     .stream()
-                    .filter(subInfo -> subInfo.getProfileClass() != PROFILE_CLASS_PROVISIONING)
+                    .filter(subInfo ->
+                            subInfo.getProfileClass() != PROFILE_CLASS_PROVISIONING
+                                && subInfo.getSubscriptionType() != SUBSCRIPTION_TYPE_REMOTE_SIM)
                     .toList();
         }
 
@@ -2227,7 +2243,10 @@ public class KeyguardUpdateMonitor implements TrustManager.TrustListener, Dumpab
             IActivityTaskManager activityTaskManagerService,
             Provider<AlternateBouncerInteractor> alternateBouncerInteractor,
             Provider<JavaAdapter> javaAdapter,
-            Provider<SceneInteractor> sceneInteractor) {
+            Provider<SceneInteractor> sceneInteractor,
+            Provider<CommunalSceneInteractor> communalSceneInteractor,
+            Provider<KeyguardServiceShowLockscreenInteractor>
+                    keyguardServiceShowLockscreenInteractor) {
         mContext = context;
         mSubscriptionManager = subscriptionManager;
         mUserTracker = userTracker;
@@ -2276,6 +2295,8 @@ public class KeyguardUpdateMonitor implements TrustManager.TrustListener, Dumpab
         mAlternateBouncerInteractor = alternateBouncerInteractor;
         mJavaAdapter = javaAdapter;
         mSceneInteractor = sceneInteractor;
+        mCommunalSceneInteractor = communalSceneInteractor;
+        mKeyguardServiceShowLockscreenInteractor = keyguardServiceShowLockscreenInteractor;
 
         mHandler = new Handler(mainLooper) {
             @Override
@@ -2565,6 +2586,20 @@ public class KeyguardUpdateMonitor implements TrustManager.TrustListener, Dumpab
             );
         }
 
+        if (KeyguardWmStateRefactor.isEnabled()) {
+            mJavaAdapter.get().alwaysCollectFlow(
+                    mKeyguardServiceShowLockscreenInteractor.get().getShowNowEvents(),
+                    this::onKeyguardServiceShowLockscreenNowEvents
+            );
+        }
+
+        if (glanceableHubV2()) {
+            mJavaAdapter.get().alwaysCollectFlow(
+                    mCommunalSceneInteractor.get().isCommunalVisible(),
+                    this::onCommunalShowingChanged
+            );
+        }
+
         // start() can be invoked in the middle of user switching, so check for this state and issue
         // the call manually as that important event was missed.
         if (mUserTracker.isUserSwitching()) {
@@ -2589,6 +2624,12 @@ public class KeyguardUpdateMonitor implements TrustManager.TrustListener, Dumpab
         int primaryBouncerIsOrWillBeShowing =
                   isPrimaryBouncerShowingOrWillBeShowing(transitionState) ? 1 : 0;
         handlePrimaryBouncerChanged(primaryBouncerIsOrWillBeShowing, primaryBouncerFullyShown);
+    }
+
+    void onKeyguardServiceShowLockscreenNowEvents(ShowWhileAwakeReason reason) {
+        if (reason == ShowWhileAwakeReason.FOLDED_WITH_SWIPE_UP_TO_CONTINUE) {
+            mMainExecutor.execute(this::tryForceIsDismissibleKeyguard);
+        }
     }
 
     private void initializeSimState() {
@@ -2622,6 +2663,15 @@ public class KeyguardUpdateMonitor implements TrustManager.TrustListener, Dumpab
      */
     public boolean isUdfpsSupported() {
         return mAuthController.isUdfpsSupported();
+    }
+
+    /**
+     * @return true if optical udfps HW is supported on this device. Can return true even if the
+     * user has not enrolled udfps. This may be false if called before
+     * onAllAuthenticatorsRegistered.
+     */
+    public boolean isOpticalUdfpsSupported() {
+        return mAuthController.isOpticalUdfpsSupported();
     }
 
     /**
@@ -2858,6 +2908,15 @@ public class KeyguardUpdateMonitor implements TrustManager.TrustListener, Dumpab
     }
 
     /**
+     * Sets whether the communal hub is showing.
+     */
+    @VisibleForTesting
+    void onCommunalShowingChanged(boolean showing) {
+        mCommunalShowing = showing;
+        updateFingerprintListeningState(BIOMETRIC_ACTION_UPDATE);
+    }
+
+    /**
      * Whether the alternate bouncer is showing.
      */
     public void setAlternateBouncerShowing(boolean showing) {
@@ -2899,14 +2958,14 @@ public class KeyguardUpdateMonitor implements TrustManager.TrustListener, Dumpab
     private boolean isPrimaryBouncerShowingOrWillBeShowing(
             ObservableTransitionState transitionState
     ) {
-        SceneContainerFlag.assertInNewMode();
+        SceneContainerFlag.unsafeAssertInNewMode();
         return isPrimaryBouncerFullyShown(transitionState)
-                || transitionState.isTransitioning(null, Scenes.Bouncer);
+                || transitionState.isTransitioning(null, Overlays.Bouncer);
     }
 
     private boolean isPrimaryBouncerFullyShown(ObservableTransitionState transitionState) {
-        SceneContainerFlag.assertInNewMode();
-        return transitionState.isIdle(Scenes.Bouncer);
+        SceneContainerFlag.unsafeAssertInNewMode();
+        return transitionState.isIdle(Overlays.Bouncer);
     }
 
     /**
@@ -3020,11 +3079,14 @@ public class KeyguardUpdateMonitor implements TrustManager.TrustListener, Dumpab
         final boolean strongerAuthRequired = !isUnlockingWithFingerprintAllowed();
         final boolean shouldListenBouncerState =
                 !strongerAuthRequired || !isPrimaryBouncerShowingOrWillBeShowing();
+        final boolean isUdfpsAuthRequiredOnCommunal =
+                !mCommunalShowing || isAlternateBouncerShowing();
 
         final boolean shouldListenUdfpsState = !isUdfps
                 || (!userCanSkipBouncer
                 && !strongerAuthRequired
-                && userDoesNotHaveTrust);
+                && userDoesNotHaveTrust
+                && (!glanceableHubV2() || isUdfpsAuthRequiredOnCommunal));
 
         final boolean shouldListenFpsState = isUdfps
                 || mFingerprintInteractiveToAuthProvider == null
@@ -3060,7 +3122,8 @@ public class KeyguardUpdateMonitor implements TrustManager.TrustListener, Dumpab
                     mSwitchingUser,
                     mIsSystemUser,
                     isUdfps,
-                    userDoesNotHaveTrust));
+                    userDoesNotHaveTrust,
+                    mCommunalShowing));
 
         return shouldListen;
     }
@@ -3357,6 +3420,11 @@ public class KeyguardUpdateMonitor implements TrustManager.TrustListener, Dumpab
                 cb.onPhoneStateChanged(mPhoneState);
             }
         }
+    }
+
+    /** Triggers an out of band time update */
+    public void triggerTimeUpdate() {
+        mHandler.sendEmptyMessage(MSG_TIME_UPDATE);
     }
 
     /**

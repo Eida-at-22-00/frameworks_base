@@ -55,6 +55,7 @@ import com.android.systemui.plugins.DarkIconDispatcher.DarkReceiver;
 import com.android.systemui.res.R;
 import com.android.systemui.settings.UserTracker;
 import com.android.systemui.statusbar.CommandQueue;
+import com.android.systemui.statusbar.core.StatusBarRootModernization;
 import com.android.systemui.statusbar.policy.ConfigurationController.ConfigurationListener;
 import com.android.systemui.tuner.TunerService;
 import com.android.systemui.tuner.TunerService.Tunable;
@@ -105,10 +106,6 @@ public class Clock extends TextView implements
     private final int mAmPmStyle;
     private boolean mShowSeconds;
     private Handler mSecondsHandler;
-
-    // Fields to cache the width so the clock remains at an approximately constant width
-    private int mCharsAtCurrentWidth = -1;
-    private int mCachedWidth = -1;
 
     /**
      * Color to be set on this {@link TextView}, when wallpaperTextColor is <b>not</b> utilized.
@@ -214,7 +211,9 @@ public class Clock extends TextView implements
 
         // Make sure we update to the current time
         updateClock();
-        updateClockVisibility();
+        if (!StatusBarRootModernization.isEnabled()) {
+            updateClockVisibility();
+        }
         updateShowSeconds();
     }
 
@@ -255,6 +254,9 @@ public class Clock extends TextView implements
                     if (mClockFormat != null) {
                         mClockFormat.setTimeZone(mCalendar.getTimeZone());
                     }
+                    if (mContentDescriptionFormat != null) {
+                        mContentDescriptionFormat.setTimeZone(mCalendar.getTimeZone());
+                    }
                 });
             } else if (action.equals(Intent.ACTION_CONFIGURATION_CHANGED)) {
                 final Locale newLocale = getResources().getConfiguration().locale;
@@ -273,19 +275,25 @@ public class Clock extends TextView implements
 
     @Override
     public void setVisibility(int visibility) {
-        if (visibility == View.VISIBLE && !shouldBeVisible()) {
-            return;
+        if (!StatusBarRootModernization.isEnabled()) {
+            if (visibility == View.VISIBLE && !shouldBeVisible()) {
+                return;
+            }
         }
 
         super.setVisibility(visibility);
     }
 
     public void setClockVisibleByUser(boolean visible) {
+        StatusBarRootModernization.assertInLegacyMode();
+
         mClockVisibleByUser = visible;
         updateClockVisibility();
     }
 
-    public void setClockVisibilityByPolicy(boolean visible) {
+    private void setClockVisibilityByPolicy(boolean visible) {
+        StatusBarRootModernization.assertInLegacyMode();
+
         mClockVisibleByPolicy = visible;
         updateClockVisibility();
     }
@@ -295,6 +303,8 @@ public class Clock extends TextView implements
     }
 
     private void updateClockVisibility() {
+        StatusBarRootModernization.assertInLegacyMode();
+
         boolean visible = shouldBeVisible();
         int visibility = visible ? View.VISIBLE : View.GONE;
         super.setVisibility(visibility);
@@ -313,32 +323,6 @@ public class Clock extends TextView implements
         setContentDescription(mContentDescriptionFormat.format(mCalendar.getTime()));
     }
 
-    /**
-     * In order to avoid the clock growing and shrinking due to proportional fonts, we want to
-     * cache the drawn width at a given number of characters (removing the cache when it changes),
-     * and only use the biggest value. This means that the clock width with grow to the maximum
-     * size over time, but reset whenever the number of characters changes (or the configuration
-     * changes)
-     */
-    @Override
-    protected void onMeasure(int widthMeasureSpec, int heightMeasureSpec) {
-        super.onMeasure(widthMeasureSpec, heightMeasureSpec);
-
-        int chars = getText().length();
-        if (chars != mCharsAtCurrentWidth) {
-            mCharsAtCurrentWidth = chars;
-            mCachedWidth = getMeasuredWidth();
-            return;
-        }
-
-        int measuredWidth = getMeasuredWidth();
-        if (mCachedWidth > measuredWidth) {
-            setMeasuredDimension(mCachedWidth, getMeasuredHeight());
-        } else {
-            mCachedWidth = measuredWidth;
-        }
-    }
-
     @Override
     public void onTuningChanged(String key, String newValue) {
         if (CLOCK_SECONDS.equals(key)) {
@@ -349,6 +333,10 @@ public class Clock extends TextView implements
 
     @Override
     public void disable(int displayId, int state1, int state2, boolean animate) {
+        if (StatusBarRootModernization.isEnabled()) {
+            return;
+        }
+
         if (displayId != getDisplay().getDisplayId()) {
             return;
         }
@@ -377,9 +365,6 @@ public class Clock extends TextView implements
     }
 
     private void reloadDimens() {
-        // reset mCachedWidth so the new width would be updated properly when next onMeasure
-        mCachedWidth = -1;
-
         FontSizeUtils.updateFontSize(this, R.dimen.status_bar_clock_size);
         setPaddingRelative(
                 mContext.getResources().getDimensionPixelSize(

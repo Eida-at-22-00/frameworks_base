@@ -164,8 +164,6 @@ public final class Trace {
     private static native void nativeInstant(long tag, String name);
     @FastNative
     private static native void nativeInstantForTrack(long tag, String trackName, String name);
-    @FastNative
-    private static native void nativeRegisterWithPerfetto();
 
     private Trace() {
     }
@@ -548,6 +546,7 @@ public final class Trace {
      * @hide
      */
     public static void registerWithPerfetto() {
-        nativeRegisterWithPerfetto();
+        PerfettoTrace.register(false /* isBackendInProcess */);
+        PerfettoTrace.registerCategories();
     }
 }

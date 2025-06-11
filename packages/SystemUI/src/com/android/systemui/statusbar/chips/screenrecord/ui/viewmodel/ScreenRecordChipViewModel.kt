@@ -43,7 +43,9 @@ import com.android.systemui.statusbar.chips.ui.model.ColorsModel
 import com.android.systemui.statusbar.chips.ui.model.OngoingActivityChipModel
 import com.android.systemui.statusbar.chips.ui.viewmodel.ChipTransitionHelper
 import com.android.systemui.statusbar.chips.ui.viewmodel.OngoingActivityChipViewModel
+import com.android.systemui.statusbar.chips.ui.viewmodel.OngoingActivityChipViewModel.Companion.createDialogLaunchOnClickCallback
 import com.android.systemui.statusbar.chips.ui.viewmodel.OngoingActivityChipViewModel.Companion.createDialogLaunchOnClickListener
+import com.android.systemui.statusbar.chips.uievents.StatusBarChipsUiEventLogger
 import com.android.systemui.util.kotlin.pairwise
 import com.android.systemui.util.time.SystemClock
 import javax.inject.Inject
@@ -66,22 +68,29 @@ constructor(
     private val endMediaProjectionDialogHelper: EndMediaProjectionDialogHelper,
     private val dialogTransitionAnimator: DialogTransitionAnimator,
     @StatusBarChipsLog private val logger: LogBuffer,
+    private val uiEventLogger: StatusBarChipsUiEventLogger,
 ) : OngoingActivityChipViewModel {
+    private val instanceId = uiEventLogger.createNewInstanceId()
 
     /** A direct mapping from [ScreenRecordChipModel] to [OngoingActivityChipModel]. */
     private val simpleChip =
         interactor.screenRecordState
             .map { state ->
                 when (state) {
-                    is ScreenRecordChipModel.DoingNothing -> OngoingActivityChipModel.Hidden()
+                    is ScreenRecordChipModel.DoingNothing -> OngoingActivityChipModel.Inactive()
                     is ScreenRecordChipModel.Starting -> {
-                        OngoingActivityChipModel.Shown.Countdown(
+                        OngoingActivityChipModel.Active.Countdown(
+                            key = KEY,
+                            isImportantForPrivacy = true,
                             colors = ColorsModel.Red,
                             secondsUntilStarted = state.millisUntilStarted.toCountdownSeconds(),
+                            instanceId = instanceId,
                         )
                     }
                     is ScreenRecordChipModel.Recording -> {
-                        OngoingActivityChipModel.Shown.Timer(
+                        OngoingActivityChipModel.Active.Timer(
+                            key = KEY,
+                            isImportantForPrivacy = true,
                             icon =
                                 OngoingActivityChipModel.ChipIcon.SingleColorIcon(
                                     Icon.Resource(
@@ -93,27 +102,40 @@ constructor(
                                 ),
                             colors = ColorsModel.Red,
                             startTimeMs = systemClock.elapsedRealtime(),
-                            createDialogLaunchOnClickListener(
-                                createDelegate(state.recordedTask),
-                                dialogTransitionAnimator,
-                                DialogCuj(
-                                    Cuj.CUJ_STATUS_BAR_LAUNCH_DIALOG_FROM_CHIP,
-                                    tag = "Screen record",
+                            onClickListenerLegacy =
+                                createDialogLaunchOnClickListener(
+                                    createDelegate(state.recordedTask),
+                                    dialogTransitionAnimator,
+                                    DIALOG_CUJ,
+                                    instanceId = instanceId,
+                                    uiEventLogger = uiEventLogger,
+                                    logger = logger,
+                                    tag = TAG,
                                 ),
-                                logger,
-                                TAG,
-                            ),
                             onLongClickListener = View.OnLongClickListener { view ->
                                 view.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
                                 stopRecordingFromDialog()
                                 true
                             },
+                            clickBehavior =
+                                OngoingActivityChipModel.ClickBehavior.ExpandAction(
+                                    createDialogLaunchOnClickCallback(
+                                        dialogDelegate = createDelegate(state.recordedTask),
+                                        dialogTransitionAnimator = dialogTransitionAnimator,
+                                        DIALOG_CUJ,
+                                        instanceId = instanceId,
+                                        uiEventLogger = uiEventLogger,
+                                        logger = logger,
+                                        tag = TAG,
+                                    )
+                                ),
+                            instanceId = instanceId,
                         )
                     }
                 }
             }
             // See b/347726238 for [SharingStarted.Lazily] reasoning.
-            .stateIn(scope, SharingStarted.Lazily, OngoingActivityChipModel.Hidden())
+            .stateIn(scope, SharingStarted.Lazily, OngoingActivityChipModel.Inactive())
 
     /**
      * The screen record chip to show that also ensures that the start time doesn't change once we
@@ -122,11 +144,11 @@ constructor(
      */
     private val chipWithConsistentTimer: StateFlow<OngoingActivityChipModel> =
         simpleChip
-            .pairwise(initialValue = OngoingActivityChipModel.Hidden())
+            .pairwise(initialValue = OngoingActivityChipModel.Inactive())
             .map { (old, new) ->
                 if (
-                    old is OngoingActivityChipModel.Shown.Timer &&
-                        new is OngoingActivityChipModel.Shown.Timer
+                    old is OngoingActivityChipModel.Active.Timer &&
+                        new is OngoingActivityChipModel.Active.Timer
                 ) {
                     new.copy(startTimeMs = old.startTimeMs)
                 } else {
@@ -134,7 +156,7 @@ constructor(
                 }
             }
             // See b/347726238 for [SharingStarted.Lazily] reasoning.
-            .stateIn(scope, SharingStarted.Lazily, OngoingActivityChipModel.Hidden())
+            .stateIn(scope, SharingStarted.Lazily, OngoingActivityChipModel.Inactive())
 
     private val chipTransitionHelper = ChipTransitionHelper(scope)
 
@@ -160,7 +182,10 @@ constructor(
     }
 
     companion object {
+        const val KEY = "ScreenRecord"
         @DrawableRes val ICON = R.drawable.ic_screenrecord
+        private val DIALOG_CUJ =
+            DialogCuj(Cuj.CUJ_STATUS_BAR_LAUNCH_DIALOG_FROM_CHIP, tag = "Screen record")
         private val TAG = "ScreenRecordVM".pad()
     }
 }

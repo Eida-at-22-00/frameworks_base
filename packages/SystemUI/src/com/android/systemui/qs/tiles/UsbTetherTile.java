@@ -57,7 +57,7 @@ import static android.net.TetheringManager.TETHERING_USB;
 /**
  * USB Tether quick settings tile
  */
-public class UsbTetherTile extends QSTileImpl<BooleanState> {
+public class UsbTetherTile extends SecureQSTile<BooleanState> {
 
     public static final String TILE_SPEC = "usb_tether";
 
@@ -91,7 +91,7 @@ public class UsbTetherTile extends QSTileImpl<BooleanState> {
             KeyguardStateController keyguardStateController
     ) {
         super(host, uiEventLogger, backgroundLooper, mainHandler, falsingManager, metricsLogger,
-                statusBarStateController, activityStarter, qsLogger);
+                statusBarStateController, activityStarter, qsLogger, keyguardStateController);
         mTetheringManager = mContext.getSystemService(TetheringManager.class);
         mOnStartTetheringCallback = new OnStartTetheringCallback();
     }
@@ -116,7 +116,10 @@ public class UsbTetherTile extends QSTileImpl<BooleanState> {
     }
 
     @Override
-    protected void handleClick(@Nullable Expandable expandable) {
+    protected void handleClick(@Nullable Expandable expandable, boolean keyguardShowing) {
+        if (checkKeyguard(expandable, keyguardShowing)) {
+            return;
+        }
         if (mUsbConnected) {
             if (!mUsbTetherEnabled) {
                 mTetheringManager.startTethering(TETHERING_USB, new HandlerExecutor(mHandler),

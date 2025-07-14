@@ -113,7 +113,7 @@ constructor(
     }
 
     /** Shows the bluetooth dialog. */
-    fun showDialog(expandable: Expandable?, isAutoOn: Boolean) {
+    fun showDialog(expandable: Expandable?) {
         // If `QsDetailedView` is enabled, it should show the details view.
         QsDetailedView.assertInLegacyMode()
 
@@ -121,7 +121,7 @@ constructor(
 
         job =
             coroutineScope.launch(context = mainDispatcher) {
-                val dialogDelegate = createBluetoothTileDialog(isAutoOn)
+                val dialogDelegate = createBluetoothTileDialog()
                 val dialog = dialogDelegate.createDialog()
 
                 val controller =
@@ -315,13 +315,12 @@ constructor(
         }
     }
 
-    private suspend fun createBluetoothTileDialog(isAutoOn: Boolean): BluetoothTileDialogDelegate {
+    private suspend fun createBluetoothTileDialog(): BluetoothTileDialogDelegate {
         return bluetoothDialogDelegateFactory.create(
             getUiProperties(),
             getCachedContentHeight(),
             this@BluetoothDetailsContentViewModel,
             { cancelJob() },
-            isAutoOn
         )
     }
 
@@ -332,7 +331,6 @@ constructor(
             this@BluetoothDetailsContentViewModel,
             /* isInDialog= */ false,
             /* doneButtonCallback= */ fun() {},
-            false
         )
     }
 

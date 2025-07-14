@@ -41,12 +41,9 @@ constructor(
     private val shadeDialogContextInteractor: ShadeDialogContextInteractor,
     private val bluetoothDetailsContentManagerFactory: BluetoothDetailsContentManager.Factory,
     private val shadeModeInteractor: ShadeModeInteractor,
-    @Assisted("is_auto_on") private val isAutoOn: Boolean = false,
 ) : SystemUIDialog.Delegate {
 
     lateinit var contentManager: BluetoothDetailsContentManager
-
-    private var autoOnDone: Boolean = false
 
     @AssistedFactory
     interface Factory {
@@ -55,7 +52,6 @@ constructor(
             cachedContentHeight: Int,
             dialogCallback: BluetoothTileDialogCallback,
             dismissListener: Runnable,
-            @Assisted("is_auto_on") isAutoOn: Boolean = false
         ): BluetoothTileDialogDelegate
     }
 
@@ -88,7 +84,6 @@ constructor(
                 /* doneButtonCallback= */ fun() {
                     dialog.dismiss()
                 },
-                /* isAutoOn */ true,
             )
         contentManager.bind(dialog.requireViewById(R.id.root))
     }

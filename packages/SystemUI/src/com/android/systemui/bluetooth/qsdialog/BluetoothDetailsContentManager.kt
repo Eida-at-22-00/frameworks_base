@@ -65,13 +65,12 @@ constructor(
     @Assisted private val initialUiProperties: BluetoothDetailsContentViewModel.UiProperties,
     @Assisted private val cachedContentHeight: Int,
     @Assisted private val bluetoothTileDialogCallback: BluetoothTileDialogCallback,
-    @Assisted(IS_IN_DIALOG) private val isInDialog: Boolean,
+    @Assisted private val isInDialog: Boolean,
     @Assisted private val doneButtonCallback: () -> Unit,
     @Main private val mainDispatcher: CoroutineDispatcher,
     private val systemClock: SystemClock,
     private val uiEventLogger: UiEventLogger,
     private val logger: BluetoothTileDialogLogger,
-    @Assisted(IS_AUTO_ON) private val isAutoOn: Boolean = false,
 ) {
 
     private val mutableBluetoothStateToggle: MutableStateFlow<Boolean?> = MutableStateFlow(null)
@@ -96,8 +95,6 @@ constructor(
 
     private var lastItemRow: Int = -1
 
-    private var autoOnDone: Boolean = false
-
     // UI Components
     private lateinit var contentView: View
     private lateinit var doneButton: Button
@@ -120,9 +117,8 @@ constructor(
             initialUiProperties: BluetoothDetailsContentViewModel.UiProperties,
             cachedContentHeight: Int,
             dialogCallback: BluetoothTileDialogCallback,
-            @Assisted(IS_IN_DIALOG) isInDialog: Boolean,
+            isInDialog: Boolean,
             doneButtonCallback: () -> Unit,
-            @Assisted(IS_AUTO_ON) isAutoOn: Boolean,
         ): BluetoothDetailsContentManager
     }
 
@@ -232,13 +228,6 @@ constructor(
         isEnabled: Boolean,
         uiProperties: BluetoothDetailsContentViewModel.UiProperties,
     ) {
-        if (isAutoOn && !autoOnDone && !isEnabled) {
-            mutableBluetoothStateToggle.value = true
-            autoOnDone = true
-            return
-        }
-        autoOnDone = true
-
         bluetoothToggle.apply {
             isChecked = isEnabled
             setEnabled(true)
@@ -449,8 +438,6 @@ constructor(
             "com.android.settings.PREVIOUSLY_CONNECTED_DEVICE"
         const val ACTION_PAIR_NEW_DEVICE = "android.settings.BLUETOOTH_PAIRING_SETTINGS"
         const val ACTION_AUDIO_SHARING = "com.android.settings.BLUETOOTH_AUDIO_SHARING_SETTINGS"
-        const val IS_IN_DIALOG = "is_in_dialog"
-        const val IS_AUTO_ON = "is_auto_on"
         const val DISABLED_ALPHA = 0.3f
         const val ENABLED_ALPHA = 1f
         const val PROGRESS_BAR_ANIMATION_DURATION_MS = 1500L

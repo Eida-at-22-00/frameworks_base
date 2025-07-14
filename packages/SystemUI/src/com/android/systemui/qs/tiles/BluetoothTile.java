@@ -167,7 +167,10 @@ public class BluetoothTile extends SecureQSTile<BooleanState> {
 
     private void handleClickEvent(@Nullable Expandable expandable) {
         if (mFeatureFlags.isEnabled(Flags.BLUETOOTH_QS_TILE_DIALOG)) {
-            mDetailsContentViewModel.get().showDialog(expandable, getAutoOn());
+            if (getAutoOn()) {
+                mController.setBluetoothEnabled(true);
+            }
+            mDetailsContentViewModel.get().showDialog(expandable);
         } else {
             // Secondary clicks are header clicks, just toggle.
             toggleBluetooth();

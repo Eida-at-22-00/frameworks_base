@@ -293,19 +293,14 @@ public class Camera {
          * if the package name does not falls in this bucket
          */
         String packageName = ActivityThread.currentOpPackageName();
-        List<String> packageList = new ArrayList<>(Arrays.asList(
-                SystemProperties.get("vendor.camera.aux.packagelist", packageName).split(",")));
-        List<String> packageBlacklist = new ArrayList<>(Arrays.asList(
-                SystemProperties.get("vendor.camera.aux.packageblacklist", "").split(",")));
+        if (packageName == null)
+            return true;
+        List<String> packageList = Arrays.asList(
+                SystemProperties.get("vendor.camera.aux.packagelist", packageName).split(","));
+        List<String> packageExcludelist = Arrays.asList(
+                SystemProperties.get("vendor.camera.aux.packageexcludelist", "").split(","));
 
-        // Append packages from resources
-        Resources res = ActivityThread.currentApplication().getResources();
-        packageList.addAll(Arrays.asList(res.getStringArray(
-                com.android.internal.R.array.config_cameraAuxPackageAllowList)));
-        packageBlacklist.addAll(Arrays.asList(res.getStringArray(
-                com.android.internal.R.array.config_cameraAuxPackageBlackList)));
-
-        return (packageList.isEmpty() || packageList.contains(packageName)) && !packageBlacklist.contains(packageName);
+        return packageList.contains(packageName) && !packageExcludelist.contains(packageName);
     }
 
     /**

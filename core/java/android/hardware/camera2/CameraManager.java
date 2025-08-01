@@ -2524,6 +2524,7 @@ public final class CameraManager {
                     size = mDeviceStatus.size();
                 }
                 for (int i = 0; i < size; i++) {
+                    if (!exposeAuxCamera && i == 2) break;
                     int status = mDeviceStatus.valueAt(i);
                     DeviceCameraInfo info = mDeviceStatus.keyAt(i);
                     if (status == ICameraServiceListener.STATUS_NOT_PRESENT
